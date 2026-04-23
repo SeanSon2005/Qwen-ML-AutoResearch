@@ -1,9 +1,0 @@
-pyproject.toml
-autoresearch.egg-info/PKG-INFO
-autoresearch.egg-info/SOURCES.txt
-autoresearch.egg-info/dependency_links.txt
-autoresearch.egg-info/requires.txt
-autoresearch.egg-info/top_level.txt
-training-lightning-hydra/src/__init__.py
-training-lightning-hydra/src/eval.py
-training-lightning-hydra/src/train.py

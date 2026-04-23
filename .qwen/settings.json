@@ -1,0 +1,20 @@
+{
+  "tools": {
+    "approvalMode": "yolo"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$QWEN_PROJECT_DIR/.qwen/hooks/pre_tool_use.py",
+            "name": "project-hardlock-policy",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

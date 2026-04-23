@@ -31,5 +31,8 @@ configs/local/
 # environment variables
 .env
 
-# data directory is optional — add here if you want to gitignore it:
-# data/
+# data
+.data/
+
+# qwen runtime state
+.qwen/state/
