@@ -1,0 +1,7 @@
+beautifulsoup4>=4.12.0
+fastmcp
+feedparser
+lxml>=4.9.0
+mcp[cli]>=1.6.0
+pypdf2>=3.0.0
+requests

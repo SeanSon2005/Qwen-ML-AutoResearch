@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: paper-search-mcp-patched
+Version: 0.1.3.post1
+Summary: Patched MCP server for academic paper search
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: beautifulsoup4>=4.12.0
+Requires-Dist: fastmcp
+Requires-Dist: feedparser
+Requires-Dist: lxml>=4.9.0
+Requires-Dist: mcp[cli]>=1.6.0
+Requires-Dist: pypdf2>=3.0.0
+Requires-Dist: requests
+
+# paper-search-mcp-patched
+
+Local patched fork of `paper-search-mcp` used by Qwen/Codex MCP configs.

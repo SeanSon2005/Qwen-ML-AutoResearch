@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+paper_search_mcp/__init__.py
+paper_search_mcp/paper.py
+paper_search_mcp/server.py
+paper_search_mcp/academic_platforms/__init__.py
+paper_search_mcp/academic_platforms/arxiv.py
+paper_search_mcp/academic_platforms/biorxiv.py
+paper_search_mcp/academic_platforms/google_scholar.py
+paper_search_mcp/academic_platforms/hub.py
+paper_search_mcp/academic_platforms/medrxiv.py
+paper_search_mcp/academic_platforms/pubmed.py
+paper_search_mcp_patched.egg-info/PKG-INFO
+paper_search_mcp_patched.egg-info/SOURCES.txt
+paper_search_mcp_patched.egg-info/dependency_links.txt
+paper_search_mcp_patched.egg-info/requires.txt
+paper_search_mcp_patched.egg-info/top_level.txt

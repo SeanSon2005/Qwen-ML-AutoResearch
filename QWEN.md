@@ -95,5 +95,5 @@ Direct training calls (`src/train.py`, `python -m src.train`, `uv run python -m 
 
 ## Workflow Expectation
 - Continue iterating experiments until the explicit stop condition in `goal.md` is met.
-- Do not stop early after one successful run if goal thresholds are not yet satisfied.
+- Do not stop early after one successful run if goal thresholds are not yet satisfied. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working indefinitely until you are manually stopped or your goal thresholds are met. You are autonomous. If you run out of ideas, think harder. Use the `paper-search-mcp` tool for papers (and the web when needed), re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes.
 - Keep `results.tsv` up to date after every experiment without skipping rows.

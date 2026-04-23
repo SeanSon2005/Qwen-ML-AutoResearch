@@ -1,0 +1,25 @@
+[project]
+name = "paper-search-mcp-patched"
+version = "0.1.3.post1"
+description = "Patched MCP server for academic paper search"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "beautifulsoup4>=4.12.0",
+  "fastmcp",
+  "feedparser",
+  "lxml>=4.9.0",
+  "mcp[cli]>=1.6.0",
+  "pypdf2>=3.0.0",
+  "requests",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["paper_search_mcp"]
+
+[tool.setuptools.package-data]
+paper_search_mcp = ["academic_platforms/*.py"]
