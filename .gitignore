@@ -1,0 +1,35 @@
+# virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# project outputs
+logs/
+results/
+
+# uv
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local hydra config (user-specific)
+configs/local/
+
+# environment variables
+.env
+
+# data directory is optional — add here if you want to gitignore it:
+# data/

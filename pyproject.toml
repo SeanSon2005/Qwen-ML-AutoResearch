@@ -1,0 +1,74 @@
+[project]
+name = "autoresearch"
+version = "0.1.0"
+description = "AutoResearch training pipeline"
+requires-python = ">=3.9"
+dependencies = [
+    # --------- pytorch --------- #
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "lightning>=2.0.0",
+    "torchmetrics>=0.11.4",
+
+    # --------- hydra --------- #
+    "hydra-core==1.3.2",
+    "hydra-colorlog==1.2.0",
+    "hydra-optuna-sweeper==1.2.0",
+
+    # --------- loggers --------- #
+    "wandb",
+
+    # --------- others --------- #
+    "rootutils",
+    "pre-commit",
+    "rich",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools]
+packages = ["src"]
+package-dir = { src = "training-lightning-hydra/src" }
+
+[tool.pytest.ini_options]
+addopts = [
+  "--color=yes",
+  "--durations=0",
+  "--strict-markers",
+  "--doctest-modules",
+]
+filter_warnings = [
+  "ignore::DeprecationWarning",
+  "ignore::UserWarning",
+]
+log_cli = "True"
+markers = [
+  "slow: slow tests",
+]
+minversion = "6.0"
+testpaths = "training-lightning-hydra/tests/"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: nocover",
+    "raise NotImplementedError",
+    "raise NotImplementedError()",
+    "if __name__ == .__main__.:",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130" }]
+torchvision = [{ index = "pytorch-cu130" }]
