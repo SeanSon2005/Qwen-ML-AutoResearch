@@ -46,7 +46,7 @@ HELPER_COMMAND_ALIASES = {
     ".qwen/bin/qfs",
 }
 
-GIT_READONLY_SUBCOMMANDS = {
+GIT_ALLOWED_SUBCOMMANDS = {
     "status",
     "diff",
     "show",
@@ -54,6 +54,8 @@ GIT_READONLY_SUBCOMMANDS = {
     "branch",
     "rev-parse",
     "ls-files",
+    "add",
+    "commit",
 }
 
 
@@ -118,13 +120,13 @@ def strip_env_prefix(tokens: list[str]) -> list[str]:
     return tokens[idx:]
 
 
-def _is_git_readonly(tokens: list[str]) -> bool:
+def _is_git_allowed(tokens: list[str]) -> bool:
     if not tokens or tokens[0] != "git":
         return False
     if len(tokens) < 2:
         return False
     sub = tokens[1]
-    if sub in GIT_READONLY_SUBCOMMANDS:
+    if sub in GIT_ALLOWED_SUBCOMMANDS:
         return True
     # Special-case: git remote -v is safe and useful.
     if sub == "remote" and len(tokens) >= 3 and tokens[2] == "-v":
@@ -170,12 +172,12 @@ def shell_policy_decision(command: str) -> tuple[bool, str]:
     if _is_helper_command(tokens):
         return True, "Approved helper command."
 
-    if _is_git_readonly(tokens):
-        return True, "Approved read-only git inspection command."
+    if _is_git_allowed(tokens):
+        return True, "Approved git command."
 
     return False, (
         "Shell command is blocked. Allowed shell usage is limited to helper commands "
-        "(./.qwen/bin/qtrain, ./.qwen/bin/qtest, ./.qwen/bin/qfs) and read-only git inspection."
+        "(./.qwen/bin/qtrain, ./.qwen/bin/qtest, ./.qwen/bin/qfs) and approved git commands."
     )
 
 

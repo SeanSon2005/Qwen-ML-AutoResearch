@@ -103,7 +103,7 @@ def test_hook_denies_direct_training_shell_command() -> None:
     assert "Direct training commands are blocked" in reason
 
 
-def test_hook_allows_watchdog_and_readonly_git_shell_commands() -> None:
+def test_hook_allows_watchdog_and_approved_git_shell_commands() -> None:
     allowed_payloads = [
         {
             "tool_name": "run_shell_command",
@@ -115,6 +115,12 @@ def test_hook_allows_watchdog_and_readonly_git_shell_commands() -> None:
             "tool_name": "run_shell_command",
             "tool_input": {"command": "git status --short"},
             "tool_use_id": "t5",
+            "permission_mode": "yolo",
+        },
+        {
+            "tool_name": "run_shell_command",
+            "tool_input": {"command": "git commit -m 'exp: loop step'"},
+            "tool_use_id": "t6",
             "permission_mode": "yolo",
         },
     ]
