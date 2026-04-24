@@ -26,11 +26,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "lark",
     "pytest",
 ]
 
 [dependency-groups]
 dev = [
+    "lark",
     "pytest",
 ]
 
@@ -45,7 +47,7 @@ addopts = [
   "--strict-markers",
   "--doctest-modules",
 ]
-filter_warnings = [
+filterwarnings = [
   "ignore::DeprecationWarning",
   "ignore::UserWarning",
 ]
