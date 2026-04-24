@@ -1,0 +1,32 @@
+{
+  "commit": "a20a262",
+  "created_at": "2026-04-24T10:45:01.880094+00:00",
+  "decision_type": "baseline_run",
+  "description": "Baseline: SimpleDenseNet (784->64->128->64->10), Adam lr=0.001, batch_size=128, 10 epochs, CPU. test_acc=97.84%.",
+  "experiment_id": "EXP-000001",
+  "finished_at": "2026-04-24T10:46:03.416667+00:00",
+  "hypothesis": "Default baseline config will achieve ~97-98% test accuracy on MNIST, establishing a floor for iteration.",
+  "metric": 0.9784,
+  "outcome": "Baseline: SimpleDenseNet (784->64->128->64->10), Adam lr=0.001, batch_size=128, 10 epochs, CPU. test_acc=97.84%.",
+  "status": "keep",
+  "train_run_ids": [
+    "run-20260424T104521Z-9e28bbb4"
+  ],
+  "train_runs": [
+    {
+      "duration_sec": 34.036,
+      "exit_code": 0,
+      "finished_at": "2026-04-24T10:45:55.206671+00:00",
+      "hydra_output_dir": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-45-22",
+      "log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-45-22/train.log",
+      "metrics_csv_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-45-22/csv/version_0/metrics.csv",
+      "ok": true,
+      "result_json_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T104521Z-9e28bbb4/result.json",
+      "run_id": "run-20260424T104521Z-9e28bbb4",
+      "started_at": "2026-04-24T10:45:21.171861+00:00",
+      "status": "success",
+      "watchdog_log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T104521Z-9e28bbb4/train.log"
+    }
+  ],
+  "updated_at": "2026-04-24T10:46:03.416667+00:00"
+}
