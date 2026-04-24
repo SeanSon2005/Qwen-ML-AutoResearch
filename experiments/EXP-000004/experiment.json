@@ -1,0 +1,47 @@
+{
+  "commit": "f38819b",
+  "created_at": "2026-04-24T10:52:06.833536+00:00",
+  "decision_type": "data_augmentation",
+  "description": "Deep CNN + RandomAffine(degrees=15, translate=0.1). test_acc=99.15% \u2014 worse than no-aug 99.34%. Augmentation too aggressive.",
+  "experiment_id": "EXP-000004",
+  "finished_at": "2026-04-24T10:56:13.077225+00:00",
+  "hypothesis": "Adding RandomAffine augmentation (15\u00b0 rotation, 0.1 translation) to the deep CNN training will improve generalization and push test accuracy past 99.5% on MNIST.",
+  "metric": 0.9915,
+  "outcome": "Deep CNN + RandomAffine(degrees=15, translate=0.1). test_acc=99.15% \u2014 worse than no-aug 99.34%. Augmentation too aggressive.",
+  "status": "discard",
+  "train_run_ids": [
+    "run-20260424T105210Z-c6d5df6c",
+    "run-20260424T105215Z-c8656246"
+  ],
+  "train_runs": [
+    {
+      "duration_sec": 2.014,
+      "exit_code": 1,
+      "finished_at": "2026-04-24T10:52:12.461977+00:00",
+      "hydra_output_dir": null,
+      "log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T105210Z-c6d5df6c/train.log",
+      "metrics_csv_path": null,
+      "ok": false,
+      "result_json_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T105210Z-c6d5df6c/result.json",
+      "run_id": "run-20260424T105210Z-c6d5df6c",
+      "started_at": "2026-04-24T10:52:10.459278+00:00",
+      "status": "failed",
+      "watchdog_log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T105210Z-c6d5df6c/train.log"
+    },
+    {
+      "duration_sec": 232.245,
+      "exit_code": 0,
+      "finished_at": "2026-04-24T10:56:07.250380+00:00",
+      "hydra_output_dir": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-52-16",
+      "log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-52-16/train.log",
+      "metrics_csv_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-52-16/csv/version_0/metrics.csv",
+      "ok": true,
+      "result_json_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T105215Z-c8656246/result.json",
+      "run_id": "run-20260424T105215Z-c8656246",
+      "started_at": "2026-04-24T10:52:15.006414+00:00",
+      "status": "success",
+      "watchdog_log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T105215Z-c8656246/train.log"
+    }
+  ],
+  "updated_at": "2026-04-24T10:56:13.077225+00:00"
+}

@@ -1,15 +1,32 @@
 {
-  "commit": null,
+  "commit": "f38819b",
   "created_at": "2026-04-24T10:48:12.473274+00:00",
   "decision_type": "deeper_architecture",
-  "description": "Deep ConvNet: 3 conv blocks (1\u219232\u219264\u2192128) + BN + ReLU, FC(128*49\u2192256\u219210). Adam lr=0.002, CosineAnnealingLR T_max=8600, batch_size=128, 20 epochs, CPU. Compared to exp2 CNN 99.09%.",
+  "description": "Deep ConvNet 3 conv blocks (1\u219232\u219264\u2192128) + FC(3136\u2192256\u219210), 1.7M params, CosineAnnealingLR, 20 epochs. test_acc=99.34%.",
   "experiment_id": "EXP-000003",
-  "finished_at": null,
+  "finished_at": "2026-04-24T10:51:45.704567+00:00",
   "hypothesis": "A 3-layer deeper CNN (32\u219264\u2192128) with CosineAnnealingLR, lr=0.002, and 20 epochs will push test accuracy past 99.3% on MNIST.",
-  "metric": null,
-  "outcome": null,
-  "status": "running",
-  "train_run_ids": [],
-  "train_runs": [],
-  "updated_at": "2026-04-24T10:48:12.473274+00:00"
+  "metric": 0.9934,
+  "outcome": "Deep ConvNet 3 conv blocks (1\u219232\u219264\u2192128) + FC(3136\u2192256\u219210), 1.7M params, CosineAnnealingLR, 20 epochs. test_acc=99.34%.",
+  "status": "keep",
+  "train_run_ids": [
+    "run-20260424T104815Z-806a6493"
+  ],
+  "train_runs": [
+    {
+      "duration_sec": 202.216,
+      "exit_code": 0,
+      "finished_at": "2026-04-24T10:51:37.730246+00:00",
+      "hydra_output_dir": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-48-16",
+      "log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-48-16/train.log",
+      "metrics_csv_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/logs/train/runs/2026-04-24_03-48-16/csv/version_0/metrics.csv",
+      "ok": true,
+      "result_json_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T104815Z-806a6493/result.json",
+      "run_id": "run-20260424T104815Z-806a6493",
+      "started_at": "2026-04-24T10:48:15.515461+00:00",
+      "status": "success",
+      "watchdog_log_path": "/home/uasai/Documents/Sean/Qwen-ML-AutoResearch/.qwen/state/train_runs/run-20260424T104815Z-806a6493/train.log"
+    }
+  ],
+  "updated_at": "2026-04-24T10:51:45.704567+00:00"
 }
