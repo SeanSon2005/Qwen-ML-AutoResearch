@@ -7,6 +7,7 @@ from train_watchdog_mcp.watchdog import (
     discover_metrics_csv,
     extract_tracebacks,
     parse_metrics_csv,
+    write_json,
 )
 
 
@@ -124,3 +125,12 @@ def test_failure_evidence_includes_non_traceback_error_excerpt() -> None:
     assert "status=failed" in evidence
     assert "exit_code=1" in evidence
     assert any("Could not override" in item for item in evidence)
+
+
+def test_write_json_writes_structured_result(tmp_path: Path) -> None:
+    result_path = tmp_path / "run-1" / "result.json"
+
+    write_json(result_path, {"ok": True, "status": "success"})
+
+    assert result_path.read_text(encoding="utf-8").strip().startswith("{")
+    assert '"status": "success"' in result_path.read_text(encoding="utf-8")

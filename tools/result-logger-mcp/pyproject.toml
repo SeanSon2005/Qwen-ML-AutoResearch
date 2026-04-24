@@ -1,0 +1,16 @@
+[project]
+name = "result-logger-mcp"
+version = "0.1.0"
+description = "Sequential experiment result logger MCP"
+requires-python = ">=3.10"
+dependencies = [
+  "fastmcp",
+  "mcp[cli]>=1.6.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["result_logger_mcp"]

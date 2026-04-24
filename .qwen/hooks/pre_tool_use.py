@@ -12,7 +12,9 @@ TRAINING_ROOT = ROOT / "training-lightning-hydra"
 
 WRITABLE_ROOTS = [
     ROOT / ".qwen" / "agents",
+    ROOT / "experiments",
     ROOT / "src",
+    ROOT / "tools" / "result-logger-mcp",
     ROOT / "tools" / "train-watchdog-mcp",
     TRAINING_ROOT / "src" / "data",
     TRAINING_ROOT / "src" / "data" / "components",
@@ -23,9 +25,7 @@ WRITABLE_ROOTS = [
     TRAINING_ROOT / "tests",
 ]
 
-WRITABLE_FILES = [
-    ROOT / "results.tsv",
-]
+WRITABLE_FILES: list[Path] = []
 
 
 def parse_json_stdin() -> dict | None:

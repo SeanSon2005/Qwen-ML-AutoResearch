@@ -17,6 +17,23 @@
       "includeTools": [
         "train_run"
       ]
+    },
+    "result_logger": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "result_logger_mcp.server"
+      ],
+      "cwd": "./tools/result-logger-mcp",
+      "timeout": 10000,
+      "trust": true,
+      "includeTools": [
+        "experiment_create",
+        "experiment_finish",
+        "experiments_list"
+      ]
     }
   },
   "hooks": {

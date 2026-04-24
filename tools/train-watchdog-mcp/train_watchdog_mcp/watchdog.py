@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import re
 import signal
@@ -70,6 +71,15 @@ def read_text(path: Path | None) -> str:
     if path is None or not path.exists():
         return ""
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def write_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+        f.write("\n")
+    tmp.replace(path)
 
 
 def tail_lines(text: str, count: int) -> str:
@@ -544,7 +554,7 @@ def train_run(
     failure_evidence = build_failure_evidence(status, combined_text, returncode)
 
     duration_sec = time.monotonic() - started_at_monotonic
-    return {
+    result = {
         "ok": status == "success",
         "status": status,
         "run_id": run_id,
@@ -569,3 +579,7 @@ def train_run(
         "started_at": started_at_iso,
         "finished_at": finished_at_iso,
     }
+    result_path = run_dir / "result.json"
+    result["result_json_path"] = str(result_path)
+    write_json(result_path, result)
+    return result

@@ -1,17 +1,13 @@
 # Experiment Goal
 
 ## Objective
-Describe the model/system behavior to optimize.
+MNIST Classification
 
-## Metrics and Targets
-- metric_1: >= 0.000000
+## Optimization Metric
+- test_acc: lightning hydra already contains an implementation.
 
 ## Constraints
-- memory_gb: <= 0.0
-- any additional constraints
-
-## Stop Condition
-Define exactly when the loop is complete.
+- memory_gb: <= 23.0
 
 ## Notes
-Optional context for tradeoffs and acceptable changes.
+None
