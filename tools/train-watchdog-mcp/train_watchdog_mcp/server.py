@@ -13,6 +13,7 @@ mcp = FastMCP("train_watchdog")
 
 @mcp.tool()
 async def train_run(
+    experiment_id: str | None = None,
     overrides: list[str] | None = None,
     timeout_sec: int = 7200,
     idle_timeout_sec: int = 900,
@@ -23,6 +24,7 @@ async def train_run(
     """Run Lightning-Hydra training under a blocking watchdog.
 
     Args:
+        experiment_id: Required experiment ID that owns this train run.
         overrides: Arbitrary Hydra override strings passed through to src.train.
         timeout_sec: Maximum wall-clock runtime before termination.
         idle_timeout_sec: Maximum seconds without train process output before termination.
@@ -35,6 +37,7 @@ async def train_run(
     """
 
     return run_training(
+        experiment_id=experiment_id,
         overrides=overrides or [],
         timeout_sec=timeout_sec,
         idle_timeout_sec=idle_timeout_sec,

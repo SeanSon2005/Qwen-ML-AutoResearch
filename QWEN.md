@@ -32,30 +32,35 @@ Use `training-lightning-hydra` only for finetuning, training, and neural-network
 ## Required Tools
 - Training must be delegated to the `train-runner` Subagent.
 - `train-runner` must call the blocking `train_run` MCP tool from `train_watchdog`; the parent agent must not call training directly.
+- Every delegated training request must include the exact `experiment_id` returned by `experiment_create`. `train_run` rejects missing, invalid, nonexistent, or non-running experiment IDs.
 - Experiment bookkeeping must use the `result_logger` MCP tools:
   - `experiments_list`
   - `experiment_create`
   - `experiment_finish`
-- `experiments_list` is the result-summary interface. `results.tsv` is legacy context only and is not the active result interface.
+- `experiments_list` is the result-summary interface.
 
 ## Experiment Records
 - Experiments are decision-level records under `experiments/EXP-*/experiment.json`.
+- Multiple experiments may be `running` at the same time so the parent agent can queue planned experiments.
 - One experiment may contain multiple sequential training runs.
 - Call `experiment_create` before making an experiment change or launching training.
-- After committing the experiment, call `experiment_finish` with experiment ID, short commit hash, status, single metric value, and description.
+- After committing the experiment, call `experiment_finish` with experiment ID, short commit hash, status, single metric value, and description. Use `metric: null` only for `discard` experiments that never produced a usable metric.
 - Valid experiment statuses:
   - `keep`: moves toward the goal
   - `discard`: valid run but not an improvement
-  - `crash`: failed run, timeout, OOM, invalid output, or unusable result
-- `experiment_finish` infers assigned train runs from the active experiment time window; do not pass train run IDs manually.
+- Failed training runs, timeouts, OOMs, invalid outputs, and unusable results are intermediate evidence only. Do not finalize an experiment as `crash`; either fix and retry under the same experiment or finish as `discard` with the failure reason.
+- If a queued experiment becomes not worth running after later results, finish it as `discard` with `metric: null`, no train runs, and a clear reason.
+- `experiment_finish` assigns train runs by the explicit `experiment_id` stored in train-run manifests; do not pass train run IDs manually.
 - Train-run assignment uses compact `.qwen/state/train_runs/<run_id>/manifest.json` pointers. Full metrics and logs remain under `logs/`.
 
 ## Testing And Training
 - Run a fast test pass after each logical change batch.
 - Run the full test suite before major training sessions or major finalization points.
 - `train_run` does not run tests; complete required regression checks before delegating training.
+- Training must always run on GPU. Do not request `trainer=cpu`, `trainer=ddp_sim`, `trainer.accelerator=cpu`, `debug=default`, or any other CPU-only override.
+- While a `train_run` is active, do not edit training source, configs, or tests. You may continue reading, planning, creating queued experiments, and finishing obsolete queued experiments.
 - Hydra overrides should pass through unchanged to `src.train`.
-- Use smoke-style overrides for quick validation, for example `++trainer.fast_dev_run=true`, `trainer=cpu`, and `logger=[]`.
+- Use smoke-style GPU overrides for quick validation, for example `++trainer.fast_dev_run=true`, `trainer=gpu`, and `logger=[]`.
 - Use full/default configs for major runs and compare experiment summaries with `experiments_list`.
 
 ## Mandatory Loop
@@ -67,9 +72,9 @@ Use `training-lightning-hydra` only for finetuning, training, and neural-network
 6. Call `experiment_create`.
 7. Implement code/config changes only in writable roots and add/update tests.
 8. Run a fast test pass.
-9. Delegate one or more sequential training runs to `train-runner`.
+9. Delegate one or more sequential training runs to `train-runner`, passing the exact experiment ID for each run.
 10. Use the Subagent report and CSV metrics artifact to choose the single experiment metric value.
-11. Decide `keep`, `discard`, or `crash`.
+11. Decide `keep` or `discard`.
 12. Commit the experiment with a message summarizing the change and status.
 13. Call `experiment_finish`.
 14. Immediately start again at step 1.

@@ -1,3 +1,5 @@
+import io
+import json
 from pathlib import Path
 
 from train_watchdog_mcp.watchdog import (
@@ -8,8 +10,128 @@ from train_watchdog_mcp.watchdog import (
     discover_metrics_csv,
     extract_tracebacks,
     parse_metrics_csv,
+    train_run,
     write_json,
 )
+
+
+def patch_train_run_roots(monkeypatch, tmp_path: Path) -> None:
+    import train_watchdog_mcp.watchdog as watchdog
+
+    monkeypatch.setattr(watchdog, "STATE_ROOT", tmp_path / "train_runs")
+    monkeypatch.setattr(watchdog, "EXPERIMENTS_ROOT", tmp_path / "experiments")
+    monkeypatch.setattr(watchdog, "TRAINING_ROOT", tmp_path / "training-lightning-hydra")
+    monkeypatch.setattr(watchdog, "ACTIVE_TRAINING_LOCK", tmp_path / "active_training.lock")
+
+
+def write_experiment(tmp_path: Path, experiment_id: str, status: str = "running") -> None:
+    experiment_path = tmp_path / "experiments" / experiment_id / "experiment.json"
+    experiment_path.parent.mkdir(parents=True)
+    experiment_path.write_text(
+        json.dumps({"experiment_id": experiment_id, "status": status}),
+        encoding="utf-8",
+    )
+
+
+class FakeProcess:
+    def __init__(self, returncode: int = 0) -> None:
+        self.pid = 12345
+        self.returncode = returncode
+        self.stdout = io.StringIO("training output\n")
+
+    def poll(self) -> int:
+        return self.returncode
+
+    def wait(self, timeout: int | None = None) -> int:
+        return self.returncode
+
+
+class FakeMonitor:
+    def __init__(self, pid: int, interval_sec: int) -> None:
+        self.pid = pid
+        self.interval_sec = interval_sec
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> dict[str, float]:
+        return {"peak_gpu_memory_gb": 0.0, "gpu_memory_total_gb": 0.0}
+
+
+def patch_fake_training(monkeypatch, returncode: int) -> None:
+    import train_watchdog_mcp.watchdog as watchdog
+
+    def fake_popen(*args, **kwargs):
+        return FakeProcess(returncode=returncode)
+
+    monkeypatch.setattr(watchdog.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(watchdog, "ResourceMonitor", FakeMonitor)
+
+
+def test_train_run_requires_experiment_id_without_starting_subprocess(
+    monkeypatch, tmp_path: Path
+) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+
+    def fail_popen(*args, **kwargs):
+        raise AssertionError("training subprocess should not start")
+
+    import train_watchdog_mcp.watchdog as watchdog
+
+    monkeypatch.setattr(watchdog.subprocess, "Popen", fail_popen)
+
+    result = train_run(experiment_id=None, overrides=[])
+
+    assert result == {"ok": False, "error": "missing_experiment_id"}
+
+
+def test_train_run_rejects_invalid_or_nonexistent_experiment(monkeypatch, tmp_path: Path) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+
+    invalid = train_run(experiment_id="bad-id", overrides=[])
+    missing = train_run(experiment_id="EXP-999999", overrides=[])
+
+    assert invalid["error"] == "invalid_experiment_id"
+    assert missing["error"] == "experiment_not_found"
+
+
+def test_train_run_rejects_non_running_experiment(monkeypatch, tmp_path: Path) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+    write_experiment(tmp_path, "EXP-000001", status="discard")
+
+    result = train_run(experiment_id="EXP-000001", overrides=[])
+
+    assert result["ok"] is False
+    assert result["error"] == "experiment_not_running"
+    assert result["current_status"] == "discard"
+
+
+def test_train_run_writes_experiment_id_and_clears_lock_on_success(
+    monkeypatch, tmp_path: Path
+) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+    patch_fake_training(monkeypatch, returncode=0)
+    write_experiment(tmp_path, "EXP-000001")
+
+    result = train_run(experiment_id="EXP-000001", overrides=["trainer=gpu"])
+
+    assert result["ok"] is True
+    assert result["experiment_id"] == "EXP-000001"
+    assert not (tmp_path / "active_training.lock").exists()
+    manifest = json.loads(Path(result["manifest_json_path"]).read_text(encoding="utf-8"))
+    assert manifest["experiment_id"] == "EXP-000001"
+
+
+def test_train_run_clears_lock_on_failure(monkeypatch, tmp_path: Path) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+    patch_fake_training(monkeypatch, returncode=1)
+    write_experiment(tmp_path, "EXP-000001")
+
+    result = train_run(experiment_id="EXP-000001", overrides=[])
+
+    assert result["ok"] is False
+    assert result["status"] == "failed"
+    assert not (tmp_path / "active_training.lock").exists()
 
 
 def test_parse_sparse_metrics_csv_with_arbitrary_names(tmp_path: Path) -> None:

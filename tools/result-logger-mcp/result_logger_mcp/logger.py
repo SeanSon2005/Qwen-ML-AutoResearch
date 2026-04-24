@@ -11,7 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENTS_ROOT = ROOT / "experiments"
 TRAIN_RUNS_ROOT = ROOT / ".qwen" / "state" / "train_runs"
-VALID_STATUSES = {"keep", "discard", "crash"}
+VALID_STATUSES = {"keep", "discard"}
 EXPERIMENT_ID_RE = re.compile(r"^EXP-(\d{6})$")
 WATCHDOG_KV_RE = re.compile(r"^\[watchdog\]\s+(?P<key>[A-Za-z_]+)=(?P<value>.*)$")
 
@@ -112,14 +112,6 @@ def experiment_create(
     decision_type: str,
     description: str,
 ) -> dict[str, Any]:
-    active = running_experiment()
-    if active is not None:
-        return error(
-            "experiment_already_running",
-            experiment_id=active.get("experiment_id"),
-            experiment_path=str(experiment_path(str(active.get("experiment_id")))),
-        )
-
     experiment_id = next_experiment_id()
     created_at = now_iso()
     experiment = {
@@ -198,6 +190,7 @@ def load_train_run(run_dir: Path) -> dict[str, Any] | None:
 def summarize_train_run(run: dict[str, Any]) -> dict[str, Any]:
     return {
         "run_id": run.get("run_id"),
+        "experiment_id": run.get("experiment_id"),
         "status": run.get("status"),
         "ok": run.get("ok"),
         "exit_code": run.get("exit_code"),
@@ -213,10 +206,10 @@ def summarize_train_run(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def infer_train_runs(start_at: str, end_at: str) -> list[dict[str, Any]]:
+def infer_train_runs(experiment_id: str, start_at: str, end_at: str) -> list[dict[str, Any]]:
     start_dt = parse_iso(start_at)
     end_dt = parse_iso(end_at)
-    if start_dt is None or end_dt is None or not TRAIN_RUNS_ROOT.exists():
+    if not TRAIN_RUNS_ROOT.exists():
         return []
 
     assigned = []
@@ -225,6 +218,15 @@ def infer_train_runs(start_at: str, end_at: str) -> list[dict[str, Any]]:
             continue
         run = load_train_run(run_dir)
         if run is None:
+            continue
+
+        run_experiment_id = run.get("experiment_id")
+        if run_experiment_id:
+            if run_experiment_id == experiment_id:
+                assigned.append(summarize_train_run(run))
+            continue
+
+        if start_dt is None or end_dt is None:
             continue
         run_started = parse_iso(str(run.get("started_at") or ""))
         if run_started is None:
@@ -240,11 +242,13 @@ def experiment_finish(
     experiment_id: str,
     commit: str,
     status: str,
-    metric: float,
+    metric: float | None,
     description: str,
 ) -> dict[str, Any]:
     if status not in VALID_STATUSES:
         return error("invalid_status", valid_statuses=sorted(VALID_STATUSES), status=status)
+    if status == "keep" and metric is None:
+        return error("metric_required", status=status)
 
     path = experiment_path(experiment_id)
     if not path.exists():
@@ -259,12 +263,16 @@ def experiment_finish(
         )
 
     finished_at = now_iso()
-    train_runs = infer_train_runs(str(experiment.get("created_at") or ""), finished_at)
+    train_runs = infer_train_runs(
+        experiment_id,
+        str(experiment.get("created_at") or ""),
+        finished_at,
+    )
     experiment["status"] = status
     experiment["updated_at"] = finished_at
     experiment["finished_at"] = finished_at
     experiment["commit"] = commit
-    experiment["metric"] = float(metric)
+    experiment["metric"] = float(metric) if metric is not None else None
     experiment["description"] = description
     experiment["outcome"] = description
     experiment["train_runs"] = train_runs

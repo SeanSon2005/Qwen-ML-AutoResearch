@@ -19,11 +19,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[3]
 TRAINING_ROOT = ROOT / "training-lightning-hydra"
 STATE_ROOT = ROOT / ".qwen" / "state" / "train_runs"
+EXPERIMENTS_ROOT = ROOT / "experiments"
+ACTIVE_TRAINING_LOCK = ROOT / ".qwen" / "state" / "active_training.lock"
 METADATA_COLUMNS = {"epoch", "step"}
 
 OUTPUT_DIR_RE = re.compile(r"Output dir:\s*(?P<path>\S+)")
 BEST_CKPT_RE = re.compile(r"Best ckpt path:\s*(?P<path>\S+)")
 RESTORE_CKPT_RE = re.compile(r"checkpoint path at\s+(?P<path>\S+)")
+EXPERIMENT_ID_RE = re.compile(r"^EXP-\d{6}$")
 OOM_PATTERNS = (
     "cuda out of memory",
     "outofmemoryerror",
@@ -80,6 +83,74 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
         json.dump(data, f, indent=2, sort_keys=True)
         f.write("\n")
     tmp.replace(path)
+
+
+def experiment_path(experiment_id: str) -> Path:
+    return EXPERIMENTS_ROOT / experiment_id / "experiment.json"
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"JSON object expected: {path}")
+    return data
+
+
+def validate_experiment_id(experiment_id: str | None) -> dict[str, Any] | None:
+    if experiment_id is None or not str(experiment_id).strip():
+        return {"ok": False, "error": "missing_experiment_id"}
+
+    normalized = str(experiment_id).strip()
+    if not EXPERIMENT_ID_RE.match(normalized):
+        return {"ok": False, "error": "invalid_experiment_id", "experiment_id": normalized}
+
+    path = experiment_path(normalized)
+    if not path.exists():
+        return {"ok": False, "error": "experiment_not_found", "experiment_id": normalized}
+
+    try:
+        experiment = read_json(path)
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": "experiment_not_found",
+            "experiment_id": normalized,
+            "detail": str(exc),
+        }
+
+    if experiment.get("status") != "running":
+        return {
+            "ok": False,
+            "error": "experiment_not_running",
+            "experiment_id": normalized,
+            "current_status": experiment.get("status"),
+        }
+
+    return None
+
+
+def write_active_training_lock(run_id: str, experiment_id: str) -> None:
+    write_json(
+        ACTIVE_TRAINING_LOCK,
+        {
+            "run_id": run_id,
+            "experiment_id": experiment_id,
+            "started_at": now_iso(),
+        },
+    )
+
+
+def clear_active_training_lock(run_id: str) -> None:
+    if not ACTIVE_TRAINING_LOCK.exists():
+        return
+    try:
+        lock = read_json(ACTIVE_TRAINING_LOCK)
+    except Exception:
+        ACTIVE_TRAINING_LOCK.unlink(missing_ok=True)
+        return
+    if lock.get("run_id") == run_id:
+        ACTIVE_TRAINING_LOCK.unlink(missing_ok=True)
 
 
 def tail_lines(text: str, count: int) -> str:
@@ -448,6 +519,7 @@ def build_failure_evidence(status: str, text: str, returncode: int | None) -> li
 def build_manifest(result: dict[str, Any]) -> dict[str, Any]:
     manifest_keys = [
         "run_id",
+        "experiment_id",
         "status",
         "ok",
         "started_at",
@@ -469,6 +541,7 @@ def build_manifest(result: dict[str, Any]) -> dict[str, Any]:
 
 def train_run(
     *,
+    experiment_id: str | None,
     overrides: list[str],
     timeout_sec: int = 7200,
     idle_timeout_sec: int = 900,
@@ -476,6 +549,12 @@ def train_run(
     report_request: str = "metrics and best checkpoint path",
     log_tail_lines: int = 200,
 ) -> dict[str, Any]:
+    validation_error = validate_experiment_id(experiment_id)
+    if validation_error is not None:
+        return validation_error
+
+    assert experiment_id is not None
+    experiment_id = experiment_id.strip()
     run_id = make_run_id()
     run_dir = STATE_ROOT / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -492,68 +571,73 @@ def train_run(
     timed_out = False
     idle_timed_out = False
 
-    with watchdog_log.open("w", encoding="utf-8") as log_file:
-        log_file.write(f"[watchdog] run_id={run_id}\n")
-        log_file.write(f"[watchdog] started_at={started_at_iso}\n")
-        log_file.write(f"[watchdog] cwd={TRAINING_ROOT}\n")
-        log_file.write(f"[watchdog] command={' '.join(command)}\n")
-        log_file.write(f"[watchdog] report_request={report_request}\n")
-        log_file.flush()
+    try:
+        write_active_training_lock(run_id, experiment_id)
+        with watchdog_log.open("w", encoding="utf-8") as log_file:
+            log_file.write(f"[watchdog] run_id={run_id}\n")
+            log_file.write(f"[watchdog] experiment_id={experiment_id}\n")
+            log_file.write(f"[watchdog] started_at={started_at_iso}\n")
+            log_file.write(f"[watchdog] cwd={TRAINING_ROOT}\n")
+            log_file.write(f"[watchdog] command={' '.join(command)}\n")
+            log_file.write(f"[watchdog] report_request={report_request}\n")
+            log_file.flush()
 
-        proc = subprocess.Popen(
-            command,
-            cwd=str(TRAINING_ROOT),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            start_new_session=True,
-        )
-        monitor = ResourceMonitor(proc.pid, monitor_interval_sec)
-        monitor.start()
+            proc = subprocess.Popen(
+                command,
+                cwd=str(TRAINING_ROOT),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                start_new_session=True,
+            )
+            monitor = ResourceMonitor(proc.pid, monitor_interval_sec)
+            monitor.start()
 
-        def reader() -> None:
-            nonlocal last_output_monotonic
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                last_output_monotonic = time.monotonic()
-                log_file.write(line)
-                log_file.flush()
+            def reader() -> None:
+                nonlocal last_output_monotonic
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    last_output_monotonic = time.monotonic()
+                    log_file.write(line)
+                    log_file.flush()
 
-        reader_thread = threading.Thread(target=reader, daemon=True)
-        reader_thread.start()
+            reader_thread = threading.Thread(target=reader, daemon=True)
+            reader_thread.start()
 
-        while proc.poll() is None:
-            elapsed = time.monotonic() - started_at_monotonic
-            idle_elapsed = time.monotonic() - last_output_monotonic
-            if timeout_sec >= 0 and elapsed > timeout_sec:
-                timed_out = True
-                log_file.write(f"\n[watchdog] timeout_sec exceeded: {timeout_sec}\n")
-                log_file.flush()
-                terminate_process_group(proc.pid)
-                break
-            if idle_timeout_sec >= 0 and idle_elapsed > idle_timeout_sec:
-                idle_timed_out = True
-                log_file.write(f"\n[watchdog] idle_timeout_sec exceeded: {idle_timeout_sec}\n")
-                log_file.flush()
-                terminate_process_group(proc.pid)
-                break
-            time.sleep(0.5)
+            while proc.poll() is None:
+                elapsed = time.monotonic() - started_at_monotonic
+                idle_elapsed = time.monotonic() - last_output_monotonic
+                if timeout_sec >= 0 and elapsed > timeout_sec:
+                    timed_out = True
+                    log_file.write(f"\n[watchdog] timeout_sec exceeded: {timeout_sec}\n")
+                    log_file.flush()
+                    terminate_process_group(proc.pid)
+                    break
+                if idle_timeout_sec >= 0 and idle_elapsed > idle_timeout_sec:
+                    idle_timed_out = True
+                    log_file.write(f"\n[watchdog] idle_timeout_sec exceeded: {idle_timeout_sec}\n")
+                    log_file.flush()
+                    terminate_process_group(proc.pid)
+                    break
+                time.sleep(0.5)
 
-        if timed_out or idle_timed_out:
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                kill_process_group(proc.pid)
+            if timed_out or idle_timed_out:
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    kill_process_group(proc.pid)
 
-        returncode = proc.wait()
-        reader_thread.join(timeout=5)
-        resource_summary = monitor.stop()
-        finished_at_iso = now_iso()
-        log_file.write(f"\n[watchdog] finished_at={finished_at_iso}\n")
-        log_file.write(f"[watchdog] exit_code={returncode}\n")
-        log_file.flush()
+            returncode = proc.wait()
+            reader_thread.join(timeout=5)
+            resource_summary = monitor.stop()
+            finished_at_iso = now_iso()
+            log_file.write(f"\n[watchdog] finished_at={finished_at_iso}\n")
+            log_file.write(f"[watchdog] exit_code={returncode}\n")
+            log_file.flush()
+    finally:
+        clear_active_training_lock(run_id)
 
     watchdog_text = read_text(watchdog_log)
     hydra_output_dir = discover_hydra_output_dir(watchdog_text, started_at_wall)
@@ -580,6 +664,7 @@ def train_run(
         "ok": status == "success",
         "status": status,
         "run_id": run_id,
+        "experiment_id": experiment_id,
         "duration_sec": round(duration_sec, 3),
         "exit_code": returncode,
         "command": command,

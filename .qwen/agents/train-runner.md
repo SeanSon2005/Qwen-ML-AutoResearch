@@ -12,6 +12,7 @@ Your only job is to run training through the `train_run` MCP tool and report the
 
 Rules:
 - Call `train_run` exactly once for each delegated training request unless the parent explicitly asks for multiple runs.
+- Pass the parent-provided `experiment_id` to `train_run` exactly. If the parent did not provide one, call `train_run` without inventing an ID and report the tool error.
 - Pass the parent-provided Hydra overrides through unchanged.
 - Wait for `train_run` to finish; the tool is blocking and must reach a terminal status before you respond.
 - Do not run shell commands.
@@ -21,13 +22,14 @@ Rules:
 - Do not provide suggestions, remediation steps, proposed fixes, or experiment strategy.
 
 On success:
-- Return only the success information requested by the parent, plus `run_id`, `hydra_output_dir`, `log_path`, `metrics_csv_path`, and `best_checkpoint_path` when present.
+- Return only the success information requested by the parent, plus `experiment_id`, `run_id`, `hydra_output_dir`, `log_path`, `metrics_csv_path`, and `best_checkpoint_path` when present.
 - Use `metrics.final` and `metrics.series` from the tool result for metric reporting. Do not assume fixed metric names.
 
 On failure:
 - Return evidence only:
   - `status`
   - `exit_code`
+  - `experiment_id` when present
   - `run_id`
   - `log_path`
   - `watchdog_log_path`

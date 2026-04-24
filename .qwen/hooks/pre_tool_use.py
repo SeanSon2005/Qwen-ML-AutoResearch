@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 TRAINING_ROOT = ROOT / "training-lightning-hydra"
+ACTIVE_TRAINING_LOCK = ROOT / ".qwen" / "state" / "active_training.lock"
 
 WRITABLE_ROOTS = [
     ROOT / ".qwen" / "agents",
@@ -26,6 +27,12 @@ WRITABLE_ROOTS = [
 ]
 
 WRITABLE_FILES: list[Path] = []
+
+TRAINING_LOCKED_ROOTS = [
+    TRAINING_ROOT / "src",
+    TRAINING_ROOT / "configs",
+    TRAINING_ROOT / "tests",
+]
 
 
 def parse_json_stdin() -> dict | None:
@@ -91,6 +98,15 @@ def is_writable_path(path: Path) -> bool:
     return any(is_within(resolved, root.resolve()) for root in WRITABLE_ROOTS)
 
 
+def is_training_locked_path(path: Path) -> bool:
+    resolved = path.resolve()
+    return any(is_within(resolved, root.resolve()) for root in TRAINING_LOCKED_ROOTS)
+
+
+def active_training_lock_exists() -> bool:
+    return ACTIVE_TRAINING_LOCK.exists()
+
+
 def writable_roots_strings() -> list[str]:
     return [str(path) for path in WRITABLE_ROOTS + WRITABLE_FILES]
 
@@ -132,6 +148,12 @@ def main() -> int:
             )
 
         target = resolve_repo_path(path_str)
+        if active_training_lock_exists() and is_training_locked_path(target):
+            return fail_closed_pretool(
+                "Training is currently active. Edits to training source, configs, "
+                f"and tests are blocked until the active train_run finishes. Blocked path: {target}."
+            )
+
         if not is_writable_path(target):
             allowed = "\n".join(f"- {root}" for root in writable_roots_strings())
             return fail_closed_pretool(

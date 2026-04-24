@@ -37,23 +37,24 @@ def test_experiment_create_allocates_sequential_ids(monkeypatch, tmp_path: Path)
     assert second["experiment_id"] == "EXP-000002"
 
 
-def test_experiment_create_fails_when_one_is_running(monkeypatch, tmp_path: Path) -> None:
+def test_experiment_create_allows_multiple_running(monkeypatch, tmp_path: Path) -> None:
     patch_roots(monkeypatch, tmp_path)
 
-    created = logger.experiment_create(
+    first = logger.experiment_create(
         hypothesis="try cnn",
         decision_type="architecture",
         description="first",
     )
-    blocked = logger.experiment_create(
+    second = logger.experiment_create(
         hypothesis="try cnn again",
         decision_type="architecture",
         description="second",
     )
 
-    assert created["ok"] is True
-    assert blocked["ok"] is False
-    assert blocked["error"] == "experiment_already_running"
+    assert first["ok"] is True
+    assert second["ok"] is True
+    assert first["experiment"]["status"] == "running"
+    assert second["experiment"]["status"] == "running"
 
 
 def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Path) -> None:
@@ -113,6 +114,131 @@ def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Pa
     assert finished["experiment"]["train_runs"][0]["manifest_json_path"].endswith(
         "manifest.json"
     )
+
+
+def test_experiment_finish_assigns_matching_experiment_id(monkeypatch, tmp_path: Path) -> None:
+    patch_roots(monkeypatch, tmp_path)
+    stamps = iter(
+        [
+            "2026-04-24T00:00:00+00:00",
+            "2026-04-24T00:01:00+00:00",
+            "2026-04-24T00:10:00+00:00",
+        ]
+    )
+    monkeypatch.setattr(logger, "now_iso", stamps.__next__)
+    first = logger.experiment_create(
+        hypothesis="first",
+        decision_type="architecture",
+        description="first",
+    )
+    second = logger.experiment_create(
+        hypothesis="second",
+        decision_type="architecture",
+        description="second",
+    )
+
+    first_run = logger.TRAIN_RUNS_ROOT / "run-first"
+    second_run = logger.TRAIN_RUNS_ROOT / "run-second"
+    first_run.mkdir(parents=True)
+    second_run.mkdir(parents=True)
+    (first_run / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": "run-first",
+                "experiment_id": first["experiment_id"],
+                "status": "success",
+                "started_at": "2026-04-24T00:05:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (second_run / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run_id": "run-second",
+                "experiment_id": second["experiment_id"],
+                "status": "success",
+                "started_at": "2026-04-24T00:05:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    finished = logger.experiment_finish(
+        experiment_id=first["experiment_id"],
+        commit="abcdef1",
+        status="keep",
+        metric=0.7,
+        description="done",
+    )
+
+    assert finished["ok"] is True
+    assert finished["assigned_train_run_ids"] == ["run-first"]
+    assert finished["experiment"]["train_runs"][0]["experiment_id"] == first["experiment_id"]
+
+
+def test_experiment_finish_allows_discard_with_no_metric_or_runs(
+    monkeypatch, tmp_path: Path
+) -> None:
+    patch_roots(monkeypatch, tmp_path)
+    created = logger.experiment_create(
+        hypothesis="skip later",
+        decision_type="architecture",
+        description="not worth running",
+    )
+
+    finished = logger.experiment_finish(
+        experiment_id=created["experiment_id"],
+        commit="abcdef1",
+        status="discard",
+        metric=None,
+        description="superseded before training",
+    )
+
+    assert finished["ok"] is True
+    assert finished["experiment"]["metric"] is None
+    assert finished["assigned_train_run_ids"] == []
+
+
+def test_experiment_finish_requires_metric_for_keep(monkeypatch, tmp_path: Path) -> None:
+    patch_roots(monkeypatch, tmp_path)
+    created = logger.experiment_create(
+        hypothesis="try cnn",
+        decision_type="architecture",
+        description="first",
+    )
+
+    result = logger.experiment_finish(
+        experiment_id=created["experiment_id"],
+        commit="abcdef1",
+        status="keep",
+        metric=None,
+        description="done",
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "metric_required"
+
+
+def test_experiment_finish_rejects_crash_status(monkeypatch, tmp_path: Path) -> None:
+    patch_roots(monkeypatch, tmp_path)
+    created = logger.experiment_create(
+        hypothesis="try cnn",
+        decision_type="architecture",
+        description="first",
+    )
+
+    result = logger.experiment_finish(
+        experiment_id=created["experiment_id"],
+        commit="abcdef1",
+        status="crash",
+        metric=None,
+        description="failed run is not a final decision",
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "invalid_status"
+    assert result["valid_statuses"] == ["discard", "keep"]
 
 
 def test_load_train_run_supports_legacy_result_json(monkeypatch, tmp_path: Path) -> None:
