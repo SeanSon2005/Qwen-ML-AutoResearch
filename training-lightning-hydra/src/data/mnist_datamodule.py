@@ -59,9 +59,6 @@ class MNISTDataModule(LightningDataModule):
         batch_size: int = 64,
         num_workers: int = 0,
         pin_memory: bool = False,
-        augment: bool = False,
-        aug_degrees: float = 15.0,
-        aug_translate: float = 0.1,
     ) -> None:
         """Initialize a `MNISTDataModule`.
 
@@ -70,9 +67,6 @@ class MNISTDataModule(LightningDataModule):
         :param batch_size: The batch size. Defaults to `64`.
         :param num_workers: The number of workers. Defaults to `0`.
         :param pin_memory: Whether to pin memory. Defaults to `False`.
-        :param augment: Whether to apply training-time data augmentation (random affine).
-        :param aug_degrees: Maximum rotation degrees for RandomAffine.
-        :param aug_translate: Maximum translation fraction for RandomAffine.
         """
         super().__init__()
 
@@ -81,28 +75,9 @@ class MNISTDataModule(LightningDataModule):
         self.save_hyperparameters(logger=False)
 
         # data transformations
-        self.augment = augment
-        self.aug_degrees = aug_degrees
-        self.aug_translate = aug_translate
-        if augment:
-            self.train_transforms = transforms.Compose(
-                [
-                    transforms.RandomAffine(
-                        degrees=aug_degrees,
-                        translate=(aug_translate, aug_translate),
-                        fill=0,
-                    ),
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.1307,), (0.3081,)),
-                ]
-            )
-            self.val_test_transforms = transforms.Compose(
-                [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-            )
-        else:
-            self.base_transforms = transforms.Compose(
-                [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-            )
+        self.transforms = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        )
 
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
@@ -149,12 +124,8 @@ class MNISTDataModule(LightningDataModule):
 
         # load and split datasets only if not loaded already
         if not self.data_train and not self.data_val and not self.data_test:
-            if self.augment:
-                trainset = MNIST(self.hparams.data_dir, train=True, transform=self.train_transforms)
-                testset = MNIST(self.hparams.data_dir, train=False, transform=self.val_test_transforms)
-            else:
-                trainset = MNIST(self.hparams.data_dir, train=True, transform=self.base_transforms)
-                testset = MNIST(self.hparams.data_dir, train=False, transform=self.base_transforms)
+            trainset = MNIST(self.hparams.data_dir, train=True, transform=self.transforms)
+            testset = MNIST(self.hparams.data_dir, train=False, transform=self.transforms)
             dataset = ConcatDataset(datasets=[trainset, testset])
             self.data_train, self.data_val, self.data_test = random_split(
                 dataset=dataset,
