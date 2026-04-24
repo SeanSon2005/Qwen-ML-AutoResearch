@@ -2,6 +2,23 @@
   "tools": {
     "approvalMode": "yolo"
   },
+  "mcpServers": {
+    "train_watchdog": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "train_watchdog_mcp.server"
+      ],
+      "cwd": "./tools/train-watchdog-mcp",
+      "timeout": 86400000,
+      "trust": true,
+      "includeTools": [
+        "train_run"
+      ]
+    }
+  },
   "hooks": {
     "PreToolUse": [
       {

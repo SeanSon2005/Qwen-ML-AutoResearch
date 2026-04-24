@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Qwen PreToolUse hook enforcing project hard-lock policy."""
+"""Qwen PreToolUse hook enforcing project write-root policy."""
 
 from __future__ import annotations
 
@@ -7,22 +7,107 @@ import json
 import sys
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-BIN_DIR = SCRIPT_DIR.parent / "bin"
-if str(BIN_DIR) not in sys.path:
-    sys.path.insert(0, str(BIN_DIR))
+ROOT = Path(__file__).resolve().parents[2]
+TRAINING_ROOT = ROOT / "training-lightning-hydra"
 
-from qpolicy_lib import (  # noqa: E402
-    canonicalize_tool_name,
-    extract_tool_path,
-    fail_closed_pretool,
-    is_writable_path,
-    make_pretool_output,
-    parse_json_stdin,
-    resolve_repo_path,
-    shell_policy_decision,
-    writable_roots_strings,
-)
+WRITABLE_ROOTS = [
+    ROOT / ".qwen" / "agents",
+    ROOT / "src",
+    ROOT / "tools" / "train-watchdog-mcp",
+    TRAINING_ROOT / "src" / "data",
+    TRAINING_ROOT / "src" / "data" / "components",
+    TRAINING_ROOT / "src" / "models",
+    TRAINING_ROOT / "src" / "models" / "components",
+    TRAINING_ROOT / "src" / "utils",
+    TRAINING_ROOT / "configs",
+    TRAINING_ROOT / "tests",
+]
+
+WRITABLE_FILES = [
+    ROOT / "results.tsv",
+]
+
+
+def parse_json_stdin() -> dict | None:
+    raw = sys.stdin.read()
+    if not raw.strip():
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def canonicalize_tool_name(tool_name: str) -> str:
+    normalized = tool_name.strip().lower()
+    mapping = {
+        "writefile": "write_file",
+        "write_file": "write_file",
+        "edit": "edit",
+        "editfile": "edit",
+    }
+    return mapping.get(normalized, normalized)
+
+
+def extract_tool_path(tool_input: object) -> str | None:
+    if not isinstance(tool_input, dict):
+        return None
+
+    for key in (
+        "file_path",
+        "path",
+        "filepath",
+        "target_file",
+        "target_path",
+        "directory_path",
+        "dir_path",
+    ):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def resolve_repo_path(path_str: str) -> Path:
+    raw = Path(path_str).expanduser()
+    if raw.is_absolute():
+        return raw.resolve()
+    return (ROOT / raw).resolve()
+
+
+def is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def is_writable_path(path: Path) -> bool:
+    resolved = path.resolve()
+    if any(resolved == file_path.resolve() for file_path in WRITABLE_FILES):
+        return True
+    return any(is_within(resolved, root.resolve()) for root in WRITABLE_ROOTS)
+
+
+def writable_roots_strings() -> list[str]:
+    return [str(path) for path in WRITABLE_ROOTS + WRITABLE_FILES]
+
+
+def make_pretool_output(decision: str, reason: str) -> dict:
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": decision,
+            "permissionDecisionReason": reason,
+        }
+    }
+
+
+def fail_closed_pretool(reason: str) -> int:
+    print(json.dumps(make_pretool_output("deny", reason)))
+    return 0
 
 
 def _allow(reason: str) -> int:
@@ -56,18 +141,8 @@ def main() -> int:
 
         return _allow("Write path is within approved writable roots.")
 
-    if tool_name == "run_shell_command":
-        command = ""
-        if isinstance(tool_input, dict):
-            command = str(tool_input.get("command", "")).strip()
-
-        allowed, reason = shell_policy_decision(command)
-        if allowed:
-            return _allow(reason)
-
-        return fail_closed_pretool(reason)
-
-    # Other tools are not write-capable under this policy and are allowed.
+    # This hook only enforces write permissions. Read-only tools and shell
+    # commands are allowed here; command safety belongs outside this hook.
     return _allow("Tool allowed by default policy.")
 
 
