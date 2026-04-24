@@ -60,6 +60,8 @@ class MNISTDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
         augment: bool = False,
+        aug_degrees: float = 15.0,
+        aug_translate: float = 0.1,
     ) -> None:
         """Initialize a `MNISTDataModule`.
 
@@ -68,7 +70,9 @@ class MNISTDataModule(LightningDataModule):
         :param batch_size: The batch size. Defaults to `64`.
         :param num_workers: The number of workers. Defaults to `0`.
         :param pin_memory: Whether to pin memory. Defaults to `False`.
-        :param augment: Whether to apply training-time data augmentation (random crop + rotation).
+        :param augment: Whether to apply training-time data augmentation (random affine).
+        :param aug_degrees: Maximum rotation degrees for RandomAffine.
+        :param aug_translate: Maximum translation fraction for RandomAffine.
         """
         super().__init__()
 
@@ -78,12 +82,14 @@ class MNISTDataModule(LightningDataModule):
 
         # data transformations
         self.augment = augment
+        self.aug_degrees = aug_degrees
+        self.aug_translate = aug_translate
         if augment:
             self.train_transforms = transforms.Compose(
                 [
                     transforms.RandomAffine(
-                        degrees=15,
-                        translate=(0.1, 0.1),
+                        degrees=aug_degrees,
+                        translate=(aug_translate, aug_translate),
                         fill=0,
                     ),
                     transforms.ToTensor(),
