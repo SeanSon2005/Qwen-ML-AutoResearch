@@ -1,10 +1,9 @@
 # Qwen Runtime Contract
 
-## Scope and Ownership
-- Repository root: the directory containing this `QWEN.md` file.
-- Use `training-lightning-hydra` only for finetuning, training, and building neural network code/configs.
-- Use repo-root `src` for other code Qwen needs to write, such as scripts, analysis utilities, model-use helpers, or one-off automation.
-- Writable code/config roots (enforced by `.qwen/hooks/pre_tool_use.py`):
+## Scope
+- Repository root is the directory containing this `QWEN.md`.
+- Qwen may read any file in the repository.
+- Qwen may write only within these roots, enforced by `.qwen/hooks/pre_tool_use.py`:
   - `.qwen/agents/**`
   - `experiments/**`
   - `src/**`
@@ -18,71 +17,67 @@
   - `training-lightning-hydra/configs/**`
   - `training-lightning-hydra/tests/**`
 
-Do not edit files outside these roots. Qwen may read any file in the repository.
+Use `training-lightning-hydra` only for finetuning, training, and neural-network code/configs. Use repo-root `src` for other code, such as analysis utilities, model-use helpers, and one-off automation.
 
-## Runtime Status
-- Training runs must be delegated to the `train-runner` project Subagent.
-- The `train-runner` Subagent must call the `train_run` MCP tool exposed by the `train_watchdog` MCP server.
-- The `train_run` tool is blocking and returns only after training reaches terminal state.
-- Do not call training directly from the parent agent.
-- Experiment bookkeeping must use the `result_logger` MCP tools: `experiment_create`, `experiment_finish`, and `experiments_list`.
-- `experiments_list` is the result-summary interface for reviewing what has been tried and what worked or failed.
+## Goal And Data
+- `goal.md` is the source of truth for the task, data requirements, objective, constraints, and optimization metric when specified.
+- Re-read `goal.md` at the start of every loop. If it changes, adapt immediately.
+- Treat the default MNIST/MLP Lightning-Hydra code as a template only. Do not assume MNIST, an MLP, image classification, or default configs are correct unless `goal.md` and the available data support that.
+- Adapt data modules, datasets, model architecture, configs, losses, metrics, and evaluation logic to match `goal.md` and the actual repository data.
+- There is exactly one optimization metric for experiment comparison. If `goal.md` names it exactly, use it.
+- If `goal.md` does not specify an exact metric, derive and implement one sturdy, accurate metric from the objective and data.
+- A derived metric must directly measure the objective, be deterministic, use held-out validation/test data, handle edge cases explicitly, and avoid train/test leakage.
+- Add tests for derived metrics before using them for experiment decisions. Record the derived metric name and rationale in the experiment description.
 
-## Goal Source of Truth (`goal.md`)
-- The user defines the experiment objective in repo-root `goal.md`.
-- `goal.md` is the authoritative contract for:
-  - what to optimize
-  - the single optimization metric
-  - hard constraints (for example memory limits)
-- There is exactly one optimization metric. Use the metric value supplied to `experiment_finish` as the experiment score.
-- `goal.md` must not be treated as a stopping contract. There are no stopping criteria for the autonomous loop.
-- At the start of each loop iteration, re-read `goal.md` and verify current progress against it.
-- If `goal.md` is changed, treat the new content as authoritative and adapt the plan immediately.
+## Required Tools
+- Training must be delegated to the `train-runner` Subagent.
+- `train-runner` must call the blocking `train_run` MCP tool from `train_watchdog`; the parent agent must not call training directly.
+- Experiment bookkeeping must use the `result_logger` MCP tools:
+  - `experiments_list`
+  - `experiment_create`
+  - `experiment_finish`
+- `experiments_list` is the result-summary interface. `results.tsv` is legacy context only and is not the active result interface.
 
-## Experiment Records (`experiments/`)
-- Experiments are decision-level records. A single experiment may contain multiple sequential training runs.
-- The authoritative experiment records live under repo-root `experiments/EXP-*/experiment.json`.
-- Use `experiments_list` to review prior attempts, current best results, and failed or discarded ideas.
-- Use `experiment_create` before making an experiment change or launching training for that experiment.
-- Use `experiment_finish` after committing the experiment. It records `commit`, `status`, the single metric value, and a short description.
+## Experiment Records
+- Experiments are decision-level records under `experiments/EXP-*/experiment.json`.
+- One experiment may contain multiple sequential training runs.
+- Call `experiment_create` before making an experiment change or launching training.
+- After committing the experiment, call `experiment_finish` with experiment ID, short commit hash, status, single metric value, and description.
+- Valid experiment statuses:
+  - `keep`: moves toward the goal
+  - `discard`: valid run but not an improvement
+  - `crash`: failed run, timeout, OOM, invalid output, or unusable result
 - `experiment_finish` infers assigned train runs from the active experiment time window; do not pass train run IDs manually.
-- `results.tsv` is legacy context only and is not the active result interface.
+- Train-run assignment uses compact `.qwen/state/train_runs/<run_id>/manifest.json` pointers. Full metrics and logs remain under `logs/`.
 
-## Lightning-Hydra Usage
-- Training is supervised by the `train_run` MCP watchdog tool.
-- Hydra overrides should still be passed through unchanged to `src.train`.
-- Use fast smoke-style overrides for rapid validation (`++trainer.fast_dev_run=true`, `trainer=cpu`, `logger=[]`).
+## Testing And Training
+- Run a fast test pass after each logical change batch.
+- Run the full test suite before major training sessions or major finalization points.
+- `train_run` does not run tests; complete required regression checks before delegating training.
+- Hydra overrides should pass through unchanged to `src.train`.
+- Use smoke-style overrides for quick validation, for example `++trainer.fast_dev_run=true`, `trainer=cpu`, and `logger=[]`.
 - Use full/default configs for major runs and compare experiment summaries with `experiments_list`.
 
-## Testing and Regression Discipline
-- During iteration, run a fast test pass after each logical change batch.
-- Before major training sessions or final delivery, run the full test suite.
-- The v1 `train_run` watchdog does not run tests; run required regression checks before delegating training.
+## Mandatory Loop
+1. Read `goal.md`; extract task, data requirements, constraints, and exact metric if specified.
+2. Inspect available data and the current pipeline; identify mismatches with the goal.
+3. If the metric is not specified exactly, derive, implement, and test one sturdy metric.
+4. Use `experiments_list` to review prior work and identify the current best `keep` experiment.
+5. Choose the next smallest high-impact experiment.
+6. Call `experiment_create`.
+7. Implement code/config changes only in writable roots and add/update tests.
+8. Run a fast test pass.
+9. Delegate one or more sequential training runs to `train-runner`.
+10. Use the Subagent report and CSV metrics artifact to choose the single experiment metric value.
+11. Decide `keep`, `discard`, or `crash`.
+12. Commit the experiment with a message summarizing the change and status.
+13. Call `experiment_finish`.
+14. Immediately start again at step 1.
 
-## Mandatory Goal Loop
-1. Read `goal.md` and extract objective, the single optimization metric, and constraints.
-2. Use `experiments_list` and identify the current best `keep` experiment and open gaps to improve.
-3. Propose the next smallest high-impact experiment.
-4. Call `experiment_create` before making the experiment change or launching training.
-5. Implement code/config updates only in allowed roots and add/update tests.
-6. Run a fast test pass.
-7. Delegate one or more sequential training runs to the `train-runner` Subagent with arbitrary Hydra overrides and the exact information needed from each run.
-8. Use the Subagent report from `train_run`; final run metrics come from each run's CSV metrics artifact.
-9. Decide experiment status:
-   - `keep`: moves toward or satisfies goal
-   - `discard`: valid run but not an improvement
-   - `crash`: failed run (error, timeout, OOM, invalid outputs)
-10. Commit the experiment:
-   - create one git commit per experiment iteration
-   - commit message should summarize key change and status
-11. Call `experiment_finish` with the experiment ID, short commit hash, status, single metric value, and description.
-12. Iterate immediately from step 1. Never end the loop voluntarily.
-
-## Workflow Expectation
-- Continue iterating experiments forever. There are no automatic stopping criteria.
-- The loop can only be stopped manually by the user.
-- Never prompt the user to continue, approve the next iteration, choose a stopping point, or confirm whether more work should be done.
-- Never stop because a metric target was reached, a run succeeded, improvements slowed, ideas seem exhausted, or the user is inactive.
+## Autonomy
+- Continue iterating forever. There are no automatic stopping criteria.
+- Only the user can manually stop the loop.
+- Never ask whether to continue, approve the next iteration, choose a stopping point, or confirm more work.
+- Never stop because a target was reached, a run succeeded, improvements slowed, ideas seem exhausted, or the user is inactive.
 - Assume the user may be away for an unknown amount of time and expects autonomous work to continue indefinitely.
-- If progress stalls, keep trying new approaches: use the `paper-search-mcp` tool for papers (and the web when needed), re-read the in-scope files for new angles, combine previous near-misses, try more radical architectural changes, and continue logging every experiment.
-- Keep `experiments/EXP-*/experiment.json` up to date through the result logger MCP after every experiment without skipping records.
+- If progress stalls, keep trying: search papers, use the web when needed, re-read in-scope files, combine near-misses, try more radical changes, and keep logging every experiment.

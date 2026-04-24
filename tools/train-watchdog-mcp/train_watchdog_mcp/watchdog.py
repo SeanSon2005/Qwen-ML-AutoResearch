@@ -445,6 +445,28 @@ def build_failure_evidence(status: str, text: str, returncode: int | None) -> li
     return [item for item in evidence if item]
 
 
+def build_manifest(result: dict[str, Any]) -> dict[str, Any]:
+    manifest_keys = [
+        "run_id",
+        "status",
+        "ok",
+        "started_at",
+        "finished_at",
+        "duration_sec",
+        "exit_code",
+        "run_dir",
+        "hydra_output_dir",
+        "metrics_csv_path",
+        "log_path",
+        "watchdog_log_path",
+        "best_checkpoint_path",
+    ]
+    manifest = {key: result.get(key) for key in manifest_keys}
+    if result.get("status") != "success":
+        manifest["failure_evidence"] = result.get("failure_evidence", [])
+    return manifest
+
+
 def train_run(
     *,
     overrides: list[str],
@@ -579,7 +601,7 @@ def train_run(
         "started_at": started_at_iso,
         "finished_at": finished_at_iso,
     }
-    result_path = run_dir / "result.json"
-    result["result_json_path"] = str(result_path)
-    write_json(result_path, result)
+    manifest_path = run_dir / "manifest.json"
+    result["manifest_json_path"] = str(manifest_path)
+    write_json(manifest_path, build_manifest(result))
     return result

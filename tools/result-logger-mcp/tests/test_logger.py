@@ -74,22 +74,22 @@ def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Pa
     before_dir.mkdir(parents=True)
     inside_dir.mkdir(parents=True)
     after_dir.mkdir(parents=True)
-    (before_dir / "result.json").write_text(
+    (before_dir / "manifest.json").write_text(
         json.dumps({"run_id": "run-before", "started_at": "2026-04-23T23:59:00+00:00"}),
         encoding="utf-8",
     )
-    (inside_dir / "result.json").write_text(
+    (inside_dir / "manifest.json").write_text(
         json.dumps(
             {
                 "run_id": "run-inside",
                 "status": "success",
                 "started_at": "2026-04-24T00:05:00+00:00",
-                "result_json_path": str(inside_dir / "result.json"),
+                "manifest_json_path": str(inside_dir / "manifest.json"),
             }
         ),
         encoding="utf-8",
     )
-    (after_dir / "result.json").write_text(
+    (after_dir / "manifest.json").write_text(
         json.dumps({"run_id": "run-after", "started_at": "2026-04-24T00:11:00+00:00"}),
         encoding="utf-8",
     )
@@ -110,6 +110,31 @@ def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Pa
     assert finished["ok"] is True
     assert finished["assigned_train_run_ids"] == ["run-inside"]
     assert finished["experiment"]["train_runs"][0]["status"] == "success"
+    assert finished["experiment"]["train_runs"][0]["manifest_json_path"].endswith(
+        "manifest.json"
+    )
+
+
+def test_load_train_run_supports_legacy_result_json(monkeypatch, tmp_path: Path) -> None:
+    patch_roots(monkeypatch, tmp_path)
+    run_dir = logger.TRAIN_RUNS_ROOT / "run-legacy"
+    run_dir.mkdir(parents=True)
+    (run_dir / "result.json").write_text(
+        json.dumps(
+            {
+                "run_id": "run-legacy",
+                "status": "success",
+                "started_at": "2026-04-24T00:05:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    run = logger.load_train_run(run_dir)
+
+    assert run is not None
+    assert run["run_id"] == "run-legacy"
+    assert run["result_json_path"].endswith("result.json")
 
 
 def test_experiment_finish_rejects_invalid_status(monkeypatch, tmp_path: Path) -> None:

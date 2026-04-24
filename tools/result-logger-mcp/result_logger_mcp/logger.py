@@ -159,11 +159,22 @@ def read_watchdog_log_metadata(log_path: Path) -> dict[str, Any]:
 
 
 def load_train_run(run_dir: Path) -> dict[str, Any] | None:
+    manifest_path = run_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = read_json(manifest_path)
+            manifest.setdefault("run_id", run_dir.name)
+            manifest.setdefault("manifest_json_path", str(manifest_path))
+            return manifest
+        except Exception:
+            pass
+
     result_path = run_dir / "result.json"
     if result_path.exists():
         try:
             result = read_json(result_path)
             result.setdefault("run_id", run_dir.name)
+            result.setdefault("manifest_json_path", str(manifest_path) if manifest_path.exists() else None)
             result.setdefault("result_json_path", str(result_path))
             return result
         except Exception:
@@ -195,6 +206,7 @@ def summarize_train_run(run: dict[str, Any]) -> dict[str, Any]:
         "duration_sec": run.get("duration_sec"),
         "hydra_output_dir": run.get("hydra_output_dir"),
         "metrics_csv_path": run.get("metrics_csv_path"),
+        "manifest_json_path": run.get("manifest_json_path"),
         "result_json_path": run.get("result_json_path"),
         "log_path": run.get("log_path"),
         "watchdog_log_path": run.get("watchdog_log_path"),

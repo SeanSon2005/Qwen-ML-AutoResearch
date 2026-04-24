@@ -32,7 +32,7 @@ configs/local/
 .env
 
 # data
-.data/
+./data
 
 # qwen runtime state
 .qwen/state/

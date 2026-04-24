@@ -2,6 +2,7 @@ from pathlib import Path
 
 from train_watchdog_mcp.watchdog import (
     build_failure_evidence,
+    build_manifest,
     classify_status,
     discover_hydra_log,
     discover_metrics_csv,
@@ -127,10 +128,30 @@ def test_failure_evidence_includes_non_traceback_error_excerpt() -> None:
     assert any("Could not override" in item for item in evidence)
 
 
-def test_write_json_writes_structured_result(tmp_path: Path) -> None:
-    result_path = tmp_path / "run-1" / "result.json"
+def test_write_json_writes_structured_manifest(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "run-1" / "manifest.json"
 
-    write_json(result_path, {"ok": True, "status": "success"})
+    write_json(manifest_path, {"ok": True, "status": "success"})
 
-    assert result_path.read_text(encoding="utf-8").strip().startswith("{")
-    assert '"status": "success"' in result_path.read_text(encoding="utf-8")
+    assert manifest_path.read_text(encoding="utf-8").strip().startswith("{")
+    assert '"status": "success"' in manifest_path.read_text(encoding="utf-8")
+
+
+def test_build_manifest_omits_heavy_result_fields() -> None:
+    manifest = build_manifest(
+        {
+            "run_id": "run-1",
+            "status": "success",
+            "ok": True,
+            "metrics": {"series": {"m": [{"value": 1.0}]}},
+            "log_excerpt": {"tail": "long log"},
+            "resource_summary": {"peak_ram_gb": 1.0},
+            "metrics_csv_path": "metrics.csv",
+        }
+    )
+
+    assert manifest["run_id"] == "run-1"
+    assert manifest["metrics_csv_path"] == "metrics.csv"
+    assert "metrics" not in manifest
+    assert "log_excerpt" not in manifest
+    assert "resource_summary" not in manifest
