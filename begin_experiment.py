@@ -7,8 +7,10 @@ import json
 import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 QWEN_BIN = "qwen"
@@ -75,13 +77,131 @@ def choose_stage(snapshot: ExperimentSnapshot) -> str:
     return "init" if not snapshot.all_ids else "loop"
 
 
+class StreamRenderer:
+    def __init__(self) -> None:
+        self._line_open = False
+        self._thinking_open = False
+
+    def _ensure_newline(self) -> None:
+        if self._line_open:
+            print(flush=True)
+            self._line_open = False
+
+    def _close_thinking(self) -> None:
+        if self._thinking_open:
+            print(" done", flush=True)
+            self._thinking_open = False
+
+    def render(self, payload: dict[str, Any]) -> None:
+        payload_type = payload.get("type")
+
+        if payload_type == "system" and payload.get("subtype") == "init":
+            self._ensure_newline()
+            print(
+                "[qwen] session "
+                f"{payload.get('session_id')} | model {payload.get('model')} | "
+                f"tools {len(payload.get('tools') or [])}",
+                flush=True,
+            )
+            return
+
+        if payload_type == "stream_event":
+            self._render_stream_event(payload.get("event") or {})
+            return
+
+        if payload_type == "result":
+            self._close_thinking()
+            self._ensure_newline()
+            subtype = payload.get("subtype")
+            duration_ms = payload.get("duration_ms")
+            print(f"[qwen] result: {subtype} ({duration_ms} ms)", flush=True)
+            return
+
+        if payload_type in {"tool_use", "tool_result"}:
+            self._close_thinking()
+            self._ensure_newline()
+            print(f"[qwen] {payload_type}: {payload.get('name') or payload.get('tool_name')}", flush=True)
+
+    def _render_stream_event(self, event: dict[str, Any]) -> None:
+        event_type = event.get("type")
+
+        if event_type == "content_block_delta":
+            delta = event.get("delta") or {}
+            delta_type = delta.get("type")
+            if delta_type == "text_delta":
+                self._close_thinking()
+                text = str(delta.get("text") or "")
+                if text:
+                    print(text, end="", flush=True)
+                    self._line_open = True
+            elif delta_type == "thinking_delta" and not self._thinking_open:
+                self._ensure_newline()
+                print("[qwen] thinking...", end="", flush=True)
+                self._thinking_open = True
+            return
+
+        if event_type == "content_block_stop":
+            self._close_thinking()
+            return
+
+        if event_type == "message_stop":
+            self._close_thinking()
+            self._ensure_newline()
+
+    def finish(self) -> None:
+        self._close_thinking()
+        self._ensure_newline()
+
+
+def render_qwen_stream(proc: subprocess.Popen[str]) -> int:
+    renderer = StreamRenderer()
+    assert proc.stdout is not None
+
+    try:
+        for line in proc.stdout:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError:
+                renderer.finish()
+                print(line, end="", flush=True)
+                continue
+            renderer.render(payload)
+    finally:
+        renderer.finish()
+
+    return proc.wait()
+
+
 def run_qwen(root: Path, stage: str) -> int:
     prompt = read_prompt(root, stage)
-    cmd = [QWEN_BIN, "--approval-mode", "yolo", prompt]
-    print(f"\n[orchestrator] starting {stage} stage: {' '.join(cmd[:3])} <prompt>", flush=True)
-    proc = subprocess.Popen(cmd, cwd=str(root))
+    cmd = [
+        QWEN_BIN,
+        "--approval-mode",
+        "yolo",
+        "--output-format",
+        "stream-json",
+        "--include-partial-messages",
+        prompt,
+    ]
+    print(
+        "\n[orchestrator] starting "
+        f"{stage} stage: {QWEN_BIN} --approval-mode yolo --output-format stream-json <prompt>",
+        flush=True,
+    )
+    started = time.monotonic()
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(root),
+        stdout=subprocess.PIPE,
+        stderr=None,
+        text=True,
+        bufsize=1,
+    )
     try:
-        return proc.wait()
+        return render_qwen_stream(proc)
     except KeyboardInterrupt:
         print("\n[orchestrator] interrupt received; stopping Qwen...", flush=True)
         proc.send_signal(signal.SIGINT)
@@ -95,6 +215,9 @@ def run_qwen(root: Path, stage: str) -> int:
                 proc.kill()
                 proc.wait()
         raise
+    finally:
+        elapsed = time.monotonic() - started
+        print(f"[orchestrator] {stage} qwen process ended after {elapsed:.1f}s", flush=True)
 
 
 def validate_stage_result(stage: str, before: ExperimentSnapshot, after: ExperimentSnapshot) -> None:
