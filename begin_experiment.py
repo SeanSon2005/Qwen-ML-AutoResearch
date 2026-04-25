@@ -81,6 +81,8 @@ class StreamRenderer:
     def __init__(self) -> None:
         self._line_open = False
         self._thinking_open = False
+        self._active_tools: dict[int, dict[str, Any]] = {}
+        self._tool_names_by_id: dict[str, str] = {}
 
     def _ensure_newline(self) -> None:
         if self._line_open:
@@ -109,6 +111,10 @@ class StreamRenderer:
             self._render_stream_event(payload.get("event") or {})
             return
 
+        if payload_type == "user":
+            self._render_user_message(payload.get("message") or {})
+            return
+
         if payload_type == "result":
             self._close_thinking()
             self._ensure_newline()
@@ -125,6 +131,10 @@ class StreamRenderer:
     def _render_stream_event(self, event: dict[str, Any]) -> None:
         event_type = event.get("type")
 
+        if event_type == "content_block_start":
+            self._render_content_block_start(event)
+            return
+
         if event_type == "content_block_delta":
             delta = event.get("delta") or {}
             delta_type = delta.get("type")
@@ -138,9 +148,15 @@ class StreamRenderer:
                 self._ensure_newline()
                 print("[qwen] thinking...", end="", flush=True)
                 self._thinking_open = True
+            elif delta_type == "input_json_delta":
+                index = int(event.get("index") or 0)
+                tool = self._active_tools.setdefault(index, {"input_parts": []})
+                tool.setdefault("input_parts", []).append(str(delta.get("partial_json") or ""))
             return
 
         if event_type == "content_block_stop":
+            index = int(event.get("index") or 0)
+            self._render_tool_input(index)
             self._close_thinking()
             return
 
@@ -151,6 +167,88 @@ class StreamRenderer:
     def finish(self) -> None:
         self._close_thinking()
         self._ensure_newline()
+
+    def _render_content_block_start(self, event: dict[str, Any]) -> None:
+        block = event.get("content_block") or {}
+        if block.get("type") != "tool_use":
+            return
+
+        self._close_thinking()
+        self._ensure_newline()
+
+        index = int(event.get("index") or 0)
+        tool_id = str(block.get("id") or "")
+        name = str(block.get("name") or "tool")
+        self._active_tools[index] = {
+            "id": tool_id,
+            "name": name,
+            "input": block.get("input") if isinstance(block.get("input"), dict) else {},
+            "input_parts": [],
+        }
+        if tool_id:
+            self._tool_names_by_id[tool_id] = name
+        print(f"[qwen] tool: {name}", flush=True)
+
+    def _render_tool_input(self, index: int) -> None:
+        tool = self._active_tools.pop(index, None)
+        if not tool:
+            return
+
+        input_data = tool.get("input") if isinstance(tool.get("input"), dict) else {}
+        partial = "".join(tool.get("input_parts") or [])
+        if partial:
+            try:
+                parsed = json.loads(partial)
+                if isinstance(parsed, dict):
+                    input_data = {**input_data, **parsed}
+            except json.JSONDecodeError:
+                input_data = {**input_data, "input": partial}
+
+        summary = self._summarize_tool_input(str(tool.get("name") or "tool"), input_data)
+        if summary:
+            print(f"[qwen] tool input: {summary}", flush=True)
+
+    def _render_user_message(self, message: dict[str, Any]) -> None:
+        content = message.get("content")
+        if not isinstance(content, list):
+            return
+
+        for item in content:
+            if not isinstance(item, dict) or item.get("type") != "tool_result":
+                continue
+            self._close_thinking()
+            self._ensure_newline()
+            tool_id = str(item.get("tool_use_id") or "")
+            name = self._tool_names_by_id.get(tool_id, "tool")
+            status = "error" if item.get("is_error") else "ok"
+            result = self._one_line(str(item.get("content") or ""), limit=220)
+            print(f"[qwen] tool result: {name} {status} | {result}", flush=True)
+
+    def _summarize_tool_input(self, name: str, input_data: dict[str, Any]) -> str:
+        if not input_data:
+            return ""
+
+        if name == "run_shell_command":
+            command = input_data.get("command") or input_data.get("cmd")
+            description = input_data.get("description")
+            if command and description:
+                return f"{self._one_line(str(command), 180)} ({self._one_line(str(description), 120)})"
+            if command:
+                return self._one_line(str(command), 220)
+
+        for key in ("file_path", "path", "pattern", "query", "glob", "command"):
+            if key in input_data:
+                return f"{key}={self._one_line(str(input_data[key]), 220)}"
+
+        compact = json.dumps(input_data, sort_keys=True)
+        return self._one_line(compact, 260)
+
+    @staticmethod
+    def _one_line(value: str, limit: int) -> str:
+        compact = " ".join(value.split())
+        if len(compact) <= limit:
+            return compact
+        return compact[: limit - 3] + "..."
 
 
 def render_qwen_stream(proc: subprocess.Popen[str]) -> int:
