@@ -68,7 +68,7 @@ def patch_fake_training(monkeypatch, returncode: int) -> None:
     monkeypatch.setattr(watchdog, "ResourceMonitor", FakeMonitor)
 
 
-def test_train_run_requires_experiment_id_without_starting_subprocess(
+def test_train_run_requires_one_running_experiment_without_starting_subprocess(
     monkeypatch, tmp_path: Path
 ) -> None:
     patch_train_run_roots(monkeypatch, tmp_path)
@@ -80,46 +80,39 @@ def test_train_run_requires_experiment_id_without_starting_subprocess(
 
     monkeypatch.setattr(watchdog.subprocess, "Popen", fail_popen)
 
-    result = train_run(experiment_id=None, overrides=[])
-
-    assert result == {"ok": False, "error": "missing_experiment_id"}
-
-
-def test_train_run_rejects_invalid_or_nonexistent_experiment(monkeypatch, tmp_path: Path) -> None:
-    patch_train_run_roots(monkeypatch, tmp_path)
-
-    invalid = train_run(experiment_id="bad-id", overrides=[])
-    missing = train_run(experiment_id="EXP-999999", overrides=[])
-
-    assert invalid["error"] == "invalid_experiment_id"
-    assert missing["error"] == "experiment_not_found"
-
-
-def test_train_run_rejects_non_running_experiment(monkeypatch, tmp_path: Path) -> None:
-    patch_train_run_roots(monkeypatch, tmp_path)
-    write_experiment(tmp_path, "EXP-000001", status="discard")
-
-    result = train_run(experiment_id="EXP-000001", overrides=[])
+    result = train_run(overrides=[])
 
     assert result["ok"] is False
-    assert result["error"] == "experiment_not_running"
-    assert result["current_status"] == "discard"
+    assert result["error"] == "no_running_experiment"
+    assert "experiment_create" in result["message"]
 
 
-def test_train_run_writes_experiment_id_and_clears_lock_on_success(
+def test_train_run_rejects_multiple_running_experiments(monkeypatch, tmp_path: Path) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+    write_experiment(tmp_path, "EXP-000001")
+    write_experiment(tmp_path, "EXP-000002")
+
+    result = train_run(overrides=[])
+
+    assert result["ok"] is False
+    assert result["error"] == "multiple_running_experiments"
+    assert result["running_experiment_ids"] == ["EXP-000001", "EXP-000002"]
+
+
+def test_train_run_succeeds_with_one_running_experiment_and_clears_lock(
     monkeypatch, tmp_path: Path
 ) -> None:
     patch_train_run_roots(monkeypatch, tmp_path)
     patch_fake_training(monkeypatch, returncode=0)
     write_experiment(tmp_path, "EXP-000001")
 
-    result = train_run(experiment_id="EXP-000001", overrides=["trainer=gpu"])
+    result = train_run(overrides=["trainer.accelerator=gpu"])
 
     assert result["ok"] is True
-    assert result["experiment_id"] == "EXP-000001"
     assert not (tmp_path / "active_training.lock").exists()
     manifest = json.loads(Path(result["manifest_json_path"]).read_text(encoding="utf-8"))
-    assert manifest["experiment_id"] == "EXP-000001"
+    assert "experiment_id" not in result
+    assert "experiment_id" not in manifest
 
 
 def test_train_run_clears_lock_on_failure(monkeypatch, tmp_path: Path) -> None:
@@ -127,7 +120,7 @@ def test_train_run_clears_lock_on_failure(monkeypatch, tmp_path: Path) -> None:
     patch_fake_training(monkeypatch, returncode=1)
     write_experiment(tmp_path, "EXP-000001")
 
-    result = train_run(experiment_id="EXP-000001", overrides=[])
+    result = train_run(overrides=[])
 
     assert result["ok"] is False
     assert result["status"] == "failed"

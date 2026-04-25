@@ -6,8 +6,8 @@ from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 
 
-class MNISTLitModule(LightningModule):
-    """Example of a `LightningModule` for MNIST classification.
+class ExampleLitModule(LightningModule):
+    """Example `LightningModule` for a toy classification task.
 
     A `LightningModule` implements 8 key methods:
 
@@ -46,7 +46,7 @@ class MNISTLitModule(LightningModule):
         scheduler: torch.optim.lr_scheduler,
         compile: bool,
     ) -> None:
-        """Initialize a `MNISTLitModule`.
+        """Initialize an `ExampleLitModule`.
 
         :param net: The model to train.
         :param optimizer: The optimizer to use for training.
@@ -223,4 +223,4 @@ class MNISTLitModule(LightningModule):
 
 
 if __name__ == "__main__":
-    _ = MNISTLitModule(None, None, None, None)
+    _ = ExampleLitModule(None, None, None, None)

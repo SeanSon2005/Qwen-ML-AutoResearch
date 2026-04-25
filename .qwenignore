@@ -27,6 +27,7 @@ tools/*/uv.lock
 *.egg-info/
 
 # Local machine/editor files
+begin_experiment.py
 .env
 .vscode/
 .idea/

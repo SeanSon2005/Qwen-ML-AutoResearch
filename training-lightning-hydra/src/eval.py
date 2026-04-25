@@ -31,13 +31,13 @@ rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 #       (so you don't need to force user to install project as a package)
 #       (necessary before importing any local modules e.g. `from src import utils`)
 # - setting up PROJECT_ROOT environment variable
-#       (which is used as a base for paths in "configs/paths/default.yaml")
+#       (which is used as a base for paths in "configs/example.yaml")
 #       (this way all filepaths are the same no matter where you run the code)
 # - loading environment variables from ".env" in root dir
 #
 # you can remove it if you:
 # 1. either install project as a package or move entry files to project root dir
-# 2. set `root_dir` to "." in "configs/paths/default.yaml"
+# 2. set `root_dir` to "." in "configs/example.yaml"
 #
 # more info: https://github.com/ashleve/rootutils
 # ------------------------------------------------------------------------------------ #
@@ -100,7 +100,7 @@ def evaluate(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     return metric_dict, object_dict
 
 
-@hydra.main(version_base="1.3", config_path="../configs", config_name="eval.yaml")
+@hydra.main(version_base="1.3", config_path="../configs", config_name="example.yaml")
 def main(cfg: DictConfig) -> None:
     """Main entry point for evaluation.
 

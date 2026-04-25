@@ -7,8 +7,8 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
 
-class MNISTDataModule(LightningDataModule):
-    """`LightningDataModule` for the MNIST dataset.
+class ExampleDataModule(LightningDataModule):
+    """Example `LightningDataModule` for a toy handwritten-digit dataset.
 
     The MNIST database of handwritten digits has a training set of 60,000 examples, and a test set of 10,000 examples.
     It is a subset of a larger set available from NIST. The digits have been size-normalized and centered in a
@@ -60,7 +60,7 @@ class MNISTDataModule(LightningDataModule):
         num_workers: int = 0,
         pin_memory: bool = False,
     ) -> None:
-        """Initialize a `MNISTDataModule`.
+        """Initialize an `ExampleDataModule`.
 
         :param data_dir: The data directory. Defaults to `"data/"`.
         :param train_val_test_split: The train, validation and test split. Defaults to `(55_000, 5_000, 10_000)`.
@@ -198,4 +198,4 @@ class MNISTDataModule(LightningDataModule):
 
 
 if __name__ == "__main__":
-    _ = MNISTDataModule()
+    _ = ExampleDataModule()

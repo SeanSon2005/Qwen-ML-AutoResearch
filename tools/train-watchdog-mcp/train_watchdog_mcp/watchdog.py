@@ -26,7 +26,6 @@ METADATA_COLUMNS = {"epoch", "step"}
 OUTPUT_DIR_RE = re.compile(r"Output dir:\s*(?P<path>\S+)")
 BEST_CKPT_RE = re.compile(r"Best ckpt path:\s*(?P<path>\S+)")
 RESTORE_CKPT_RE = re.compile(r"checkpoint path at\s+(?P<path>\S+)")
-EXPERIMENT_ID_RE = re.compile(r"^EXP-\d{6}$")
 OOM_PATTERNS = (
     "cuda out of memory",
     "outofmemoryerror",
@@ -85,10 +84,6 @@ def write_json(path: Path, data: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def experiment_path(experiment_id: str) -> Path:
-    return EXPERIMENTS_ROOT / experiment_id / "experiment.json"
-
-
 def read_json(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
@@ -97,45 +92,48 @@ def read_json(path: Path) -> dict[str, Any]:
     return data
 
 
-def validate_experiment_id(experiment_id: str | None) -> dict[str, Any] | None:
-    if experiment_id is None or not str(experiment_id).strip():
-        return {"ok": False, "error": "missing_experiment_id"}
+def load_running_experiments() -> list[dict[str, Any]]:
+    if not EXPERIMENTS_ROOT.exists():
+        return []
 
-    normalized = str(experiment_id).strip()
-    if not EXPERIMENT_ID_RE.match(normalized):
-        return {"ok": False, "error": "invalid_experiment_id", "experiment_id": normalized}
+    experiments = []
+    for path in sorted(EXPERIMENTS_ROOT.glob("EXP-*/experiment.json")):
+        try:
+            experiment = read_json(path)
+        except Exception:
+            continue
+        if experiment.get("status") == "running":
+            experiments.append(experiment)
+    return experiments
 
-    path = experiment_path(normalized)
-    if not path.exists():
-        return {"ok": False, "error": "experiment_not_found", "experiment_id": normalized}
 
-    try:
-        experiment = read_json(path)
-    except Exception as exc:
+def validate_single_running_experiment() -> dict[str, Any] | None:
+    running = load_running_experiments()
+    if len(running) == 1:
+        return None
+    if not running:
         return {
             "ok": False,
-            "error": "experiment_not_found",
-            "experiment_id": normalized,
-            "detail": str(exc),
+            "error": "no_running_experiment",
+            "message": "Call experiment_create before train_run.",
         }
+    return {
+        "ok": False,
+        "error": "multiple_running_experiments",
+        "running_experiment_ids": [
+            str(experiment.get("experiment_id"))
+            for experiment in running
+            if experiment.get("experiment_id")
+        ],
+        "message": "Finish the running experiment before starting another train_run.",
+    }
 
-    if experiment.get("status") != "running":
-        return {
-            "ok": False,
-            "error": "experiment_not_running",
-            "experiment_id": normalized,
-            "current_status": experiment.get("status"),
-        }
 
-    return None
-
-
-def write_active_training_lock(run_id: str, experiment_id: str) -> None:
+def write_active_training_lock(run_id: str) -> None:
     write_json(
         ACTIVE_TRAINING_LOCK,
         {
             "run_id": run_id,
-            "experiment_id": experiment_id,
             "started_at": now_iso(),
         },
     )
@@ -519,7 +517,6 @@ def build_failure_evidence(status: str, text: str, returncode: int | None) -> li
 def build_manifest(result: dict[str, Any]) -> dict[str, Any]:
     manifest_keys = [
         "run_id",
-        "experiment_id",
         "status",
         "ok",
         "started_at",
@@ -541,7 +538,6 @@ def build_manifest(result: dict[str, Any]) -> dict[str, Any]:
 
 def train_run(
     *,
-    experiment_id: str | None,
     overrides: list[str],
     timeout_sec: int = 7200,
     idle_timeout_sec: int = 900,
@@ -549,12 +545,10 @@ def train_run(
     report_request: str = "metrics and best checkpoint path",
     log_tail_lines: int = 200,
 ) -> dict[str, Any]:
-    validation_error = validate_experiment_id(experiment_id)
+    validation_error = validate_single_running_experiment()
     if validation_error is not None:
         return validation_error
 
-    assert experiment_id is not None
-    experiment_id = experiment_id.strip()
     run_id = make_run_id()
     run_dir = STATE_ROOT / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -572,10 +566,9 @@ def train_run(
     idle_timed_out = False
 
     try:
-        write_active_training_lock(run_id, experiment_id)
+        write_active_training_lock(run_id)
         with watchdog_log.open("w", encoding="utf-8") as log_file:
             log_file.write(f"[watchdog] run_id={run_id}\n")
-            log_file.write(f"[watchdog] experiment_id={experiment_id}\n")
             log_file.write(f"[watchdog] started_at={started_at_iso}\n")
             log_file.write(f"[watchdog] cwd={TRAINING_ROOT}\n")
             log_file.write(f"[watchdog] command={' '.join(command)}\n")
@@ -664,7 +657,6 @@ def train_run(
         "ok": status == "success",
         "status": status,
         "run_id": run_id,
-        "experiment_id": experiment_id,
         "duration_sec": round(duration_sec, 3),
         "exit_code": returncode,
         "command": command,

@@ -16,6 +16,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, open_dict
 
 PROJECT_ROOT = rootutils.find_root(search_from=__file__, indicator=".project-root")
+os.environ["PROJECT_ROOT"] = str(PROJECT_ROOT)
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -61,7 +62,7 @@ def cfg_train_global() -> DictConfig:
     :return: A DictConfig object containing a default Hydra configuration for training.
     """
     with initialize(version_base="1.3", config_path="../configs"):
-        cfg = compose(config_name="train.yaml", return_hydra_config=True, overrides=[])
+        cfg = compose(config_name="example.yaml", return_hydra_config=True, overrides=[])
 
         # set defaults for all tests
         with open_dict(cfg):
@@ -88,7 +89,7 @@ def cfg_eval_global() -> DictConfig:
     :return: A DictConfig containing a default Hydra configuration for evaluation.
     """
     with initialize(version_base="1.3", config_path="../configs"):
-        cfg = compose(config_name="eval.yaml", return_hydra_config=True, overrides=["ckpt_path=."])
+        cfg = compose(config_name="example.yaml", return_hydra_config=True, overrides=["ckpt_path=."])
 
         # set defaults for all tests
         with open_dict(cfg):

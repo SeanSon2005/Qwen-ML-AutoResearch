@@ -37,7 +37,7 @@ def test_experiment_create_allocates_sequential_ids(monkeypatch, tmp_path: Path)
     assert second["experiment_id"] == "EXP-000002"
 
 
-def test_experiment_create_allows_multiple_running(monkeypatch, tmp_path: Path) -> None:
+def test_experiment_create_rejects_second_running_experiment(monkeypatch, tmp_path: Path) -> None:
     patch_roots(monkeypatch, tmp_path)
 
     first = logger.experiment_create(
@@ -52,9 +52,10 @@ def test_experiment_create_allows_multiple_running(monkeypatch, tmp_path: Path) 
     )
 
     assert first["ok"] is True
-    assert second["ok"] is True
+    assert second["ok"] is False
+    assert second["error"] == "running_experiment_exists"
     assert first["experiment"]["status"] == "running"
-    assert second["experiment"]["status"] == "running"
+    assert second["running_experiment"]["experiment_id"] == first["experiment_id"]
 
 
 def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Path) -> None:
@@ -83,6 +84,7 @@ def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Pa
         json.dumps(
             {
                 "run_id": "run-inside",
+                "experiment_id": "EXP-999999",
                 "status": "success",
                 "started_at": "2026-04-24T00:05:00+00:00",
                 "manifest_json_path": str(inside_dir / "manifest.json"),
@@ -111,70 +113,10 @@ def test_experiment_finish_infers_train_runs_in_window(monkeypatch, tmp_path: Pa
     assert finished["ok"] is True
     assert finished["assigned_train_run_ids"] == ["run-inside"]
     assert finished["experiment"]["train_runs"][0]["status"] == "success"
+    assert "experiment_id" not in finished["experiment"]["train_runs"][0]
     assert finished["experiment"]["train_runs"][0]["manifest_json_path"].endswith(
         "manifest.json"
     )
-
-
-def test_experiment_finish_assigns_matching_experiment_id(monkeypatch, tmp_path: Path) -> None:
-    patch_roots(monkeypatch, tmp_path)
-    stamps = iter(
-        [
-            "2026-04-24T00:00:00+00:00",
-            "2026-04-24T00:01:00+00:00",
-            "2026-04-24T00:10:00+00:00",
-        ]
-    )
-    monkeypatch.setattr(logger, "now_iso", stamps.__next__)
-    first = logger.experiment_create(
-        hypothesis="first",
-        decision_type="architecture",
-        description="first",
-    )
-    second = logger.experiment_create(
-        hypothesis="second",
-        decision_type="architecture",
-        description="second",
-    )
-
-    first_run = logger.TRAIN_RUNS_ROOT / "run-first"
-    second_run = logger.TRAIN_RUNS_ROOT / "run-second"
-    first_run.mkdir(parents=True)
-    second_run.mkdir(parents=True)
-    (first_run / "manifest.json").write_text(
-        json.dumps(
-            {
-                "run_id": "run-first",
-                "experiment_id": first["experiment_id"],
-                "status": "success",
-                "started_at": "2026-04-24T00:05:00+00:00",
-            }
-        ),
-        encoding="utf-8",
-    )
-    (second_run / "manifest.json").write_text(
-        json.dumps(
-            {
-                "run_id": "run-second",
-                "experiment_id": second["experiment_id"],
-                "status": "success",
-                "started_at": "2026-04-24T00:05:00+00:00",
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    finished = logger.experiment_finish(
-        experiment_id=first["experiment_id"],
-        commit="abcdef1",
-        status="keep",
-        metric=0.7,
-        description="done",
-    )
-
-    assert finished["ok"] is True
-    assert finished["assigned_train_run_ids"] == ["run-first"]
-    assert finished["experiment"]["train_runs"][0]["experiment_id"] == first["experiment_id"]
 
 
 def test_experiment_finish_allows_discard_with_no_metric_or_runs(

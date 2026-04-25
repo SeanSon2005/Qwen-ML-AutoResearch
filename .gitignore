@@ -11,6 +11,8 @@ htmlcov/
 # project outputs
 logs/
 results/
+downloads/
+tools/paper-search-mcp-patched/downloads/
 
 # uv
 uv.lock

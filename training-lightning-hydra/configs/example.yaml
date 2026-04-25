@@ -1,0 +1,112 @@
+# Qwen example training config.
+# This is intentionally a single-file Hydra config so the agent can inspect and
+# edit the whole training surface without chasing config groups.
+
+# Use direct Hydra field overrides from train_run, for example:
+#   ++trainer.fast_dev_run=true
+#   trainer.max_epochs=1
+#   data.batch_size=64
+#   logger=null
+# Add new fields with ++ only when Hydra says a key is not in the config.
+
+task_name: "train"
+tags: ["example"]
+train: true
+test: true
+ckpt_path: null
+seed: null
+optimized_metric: "val/acc_best"
+
+paths:
+  root_dir: ${oc.env:PROJECT_ROOT}
+  data_dir: ${paths.root_dir}/data/
+  log_dir: ${paths.root_dir}/../logs/
+  output_dir: ${hydra:runtime.output_dir}
+  work_dir: ${hydra:runtime.cwd}
+
+data:
+  _target_: src.data.example_datamodule.ExampleDataModule
+  data_dir: ${paths.data_dir}
+  batch_size: 128
+  train_val_test_split: [55000, 5000, 10000]
+  num_workers: 0
+  pin_memory: false
+
+model:
+  _target_: src.models.example_module.ExampleLitModule
+  optimizer:
+    _target_: torch.optim.Adam
+    _partial_: true
+    lr: 0.001
+    weight_decay: 0.0
+  scheduler:
+    _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+    _partial_: true
+    mode: min
+    factor: 0.1
+    patience: 10
+  net:
+    _target_: src.models.components.simple_dense_net.SimpleDenseNet
+    input_size: 784
+    lin1_size: 64
+    lin2_size: 128
+    lin3_size: 64
+    output_size: 10
+  compile: false
+
+callbacks:
+  model_checkpoint:
+    _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    dirpath: ${paths.output_dir}/checkpoints
+    filename: "epoch_{epoch:03d}"
+    monitor: "val/acc"
+    mode: "max"
+    save_last: true
+    save_top_k: 1
+    auto_insert_metric_name: false
+  early_stopping:
+    _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: "val/acc"
+    patience: 100
+    mode: "max"
+    strict: true
+  model_summary:
+    _target_: lightning.pytorch.callbacks.ModelSummary
+    max_depth: -1
+  rich_progress_bar:
+    _target_: lightning.pytorch.callbacks.RichProgressBar
+
+logger:
+  csv:
+    _target_: lightning.pytorch.loggers.csv_logs.CSVLogger
+    save_dir: ${paths.output_dir}
+    name: "csv/"
+    prefix: ""
+
+trainer:
+  _target_: lightning.pytorch.trainer.Trainer
+  default_root_dir: ${paths.output_dir}
+  min_epochs: 1
+  max_epochs: 10
+  # Do not change for Qwen training runs; the runtime contract requires GPU.
+  # Tests may override this internally when CUDA is intentionally hidden.
+  accelerator: gpu
+  devices: 1
+  check_val_every_n_epoch: 1
+  deterministic: false
+
+extras:
+  ignore_warnings: false
+  enforce_tags: false
+  print_config: true
+
+hydra:
+  run:
+    dir: ${paths.log_dir}/${task_name}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  sweep:
+    dir: ${paths.log_dir}/${task_name}/multiruns/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  job_logging:
+    handlers:
+      file:
+        filename: ${hydra.runtime.output_dir}/${task_name}.log

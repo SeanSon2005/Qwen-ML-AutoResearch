@@ -23,7 +23,7 @@ async def experiment_create(
 ) -> dict[str, Any]:
     """Create the next experiment record.
 
-    Multiple experiments may remain running so the parent agent can queue plans.
+    A new experiment is rejected while another experiment is running.
     """
 
     return create_experiment(
@@ -41,7 +41,7 @@ async def experiment_finish(
     metric: float | None = None,
     description: str = "",
 ) -> dict[str, Any]:
-    """Finish an experiment and assign train runs by explicit experiment_id ownership."""
+    """Finish an experiment and assign train runs by experiment time window."""
 
     return finish_experiment(
         experiment_id=experiment_id,

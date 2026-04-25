@@ -80,11 +80,8 @@ def next_experiment_id() -> str:
     return f"EXP-{max_id + 1:06d}"
 
 
-def running_experiment() -> dict[str, Any] | None:
-    for experiment in load_experiments():
-        if experiment.get("status") == "running":
-            return experiment
-    return None
+def running_experiments() -> list[dict[str, Any]]:
+    return [experiment for experiment in load_experiments() if experiment.get("status") == "running"]
 
 
 def compact_experiment(experiment: dict[str, Any]) -> dict[str, Any]:
@@ -112,6 +109,13 @@ def experiment_create(
     decision_type: str,
     description: str,
 ) -> dict[str, Any]:
+    running = running_experiments()
+    if running:
+        return error(
+            "running_experiment_exists",
+            running_experiment=compact_experiment(running[0]),
+        )
+
     experiment_id = next_experiment_id()
     created_at = now_iso()
     experiment = {
@@ -190,7 +194,6 @@ def load_train_run(run_dir: Path) -> dict[str, Any] | None:
 def summarize_train_run(run: dict[str, Any]) -> dict[str, Any]:
     return {
         "run_id": run.get("run_id"),
-        "experiment_id": run.get("experiment_id"),
         "status": run.get("status"),
         "ok": run.get("ok"),
         "exit_code": run.get("exit_code"),
@@ -206,7 +209,7 @@ def summarize_train_run(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def infer_train_runs(experiment_id: str, start_at: str, end_at: str) -> list[dict[str, Any]]:
+def infer_train_runs(start_at: str, end_at: str) -> list[dict[str, Any]]:
     start_dt = parse_iso(start_at)
     end_dt = parse_iso(end_at)
     if not TRAIN_RUNS_ROOT.exists():
@@ -218,12 +221,6 @@ def infer_train_runs(experiment_id: str, start_at: str, end_at: str) -> list[dic
             continue
         run = load_train_run(run_dir)
         if run is None:
-            continue
-
-        run_experiment_id = run.get("experiment_id")
-        if run_experiment_id:
-            if run_experiment_id == experiment_id:
-                assigned.append(summarize_train_run(run))
             continue
 
         if start_dt is None or end_dt is None:
@@ -263,11 +260,7 @@ def experiment_finish(
         )
 
     finished_at = now_iso()
-    train_runs = infer_train_runs(
-        experiment_id,
-        str(experiment.get("created_at") or ""),
-        finished_at,
-    )
+    train_runs = infer_train_runs(str(experiment.get("created_at") or ""), finished_at)
     experiment["status"] = status
     experiment["updated_at"] = finished_at
     experiment["finished_at"] = finished_at
