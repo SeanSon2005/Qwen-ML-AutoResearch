@@ -11,6 +11,7 @@ from train_watchdog_mcp.watchdog import (
     extract_tracebacks,
     parse_metrics_csv,
     train_run,
+    write_active_training_lock,
     write_json,
 )
 
@@ -113,6 +114,31 @@ def test_train_run_succeeds_with_one_running_experiment_and_clears_lock(
     manifest = json.loads(Path(result["manifest_json_path"]).read_text(encoding="utf-8"))
     assert "experiment_id" not in result
     assert "experiment_id" not in manifest
+
+
+def test_active_training_lock_includes_dashboard_fields(monkeypatch, tmp_path: Path) -> None:
+    patch_train_run_roots(monkeypatch, tmp_path)
+
+    write_active_training_lock(
+        run_id="run-1",
+        experiment={"experiment_id": "EXP-000001", "status": "running"},
+        overrides=["trainer.accelerator=gpu"],
+        timeout_sec=7,
+        idle_timeout_sec=8,
+        monitor_interval_sec=9,
+        report_request="metrics",
+    )
+
+    lock = json.loads((tmp_path / "active_training.lock").read_text(encoding="utf-8"))
+
+    assert lock["run_id"] == "run-1"
+    assert lock["experiment_id"] == "EXP-000001"
+    assert lock["overrides"] == ["trainer.accelerator=gpu"]
+    assert lock["timeout_sec"] == 7
+    assert lock["idle_timeout_sec"] == 8
+    assert lock["monitor_interval_sec"] == 9
+    assert lock["report_request"] == "metrics"
+    assert lock["started_at"]
 
 
 def test_train_run_clears_lock_on_failure(monkeypatch, tmp_path: Path) -> None:

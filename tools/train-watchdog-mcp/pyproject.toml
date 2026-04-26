@@ -11,8 +11,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "lark",
   "pytest",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["setuptools>=61.0"]

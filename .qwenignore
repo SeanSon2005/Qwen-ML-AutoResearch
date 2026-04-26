@@ -11,23 +11,16 @@ htmlcov/
 
 # Generated training and experiment outputs
 logs/
-training-lightning-hydra/logs/
-results/
-.qwen/state/
 
-# Large binary data should be inspected through tools, not loaded into prompt context.
-data/*.mat
+# MCP files
+tools/
 
-# Template/reference noise
-training-lightning-hydra/README.md
-
-# Package manager/generated files
-uv.lock
-tools/*/uv.lock
-*.egg-info/
+# Qwen-specific files
+.qwen/
+.qwenignore
+begin_experiment.py
 
 # Local machine/editor files
-begin_experiment.py
 .env
 .vscode/
 .idea/

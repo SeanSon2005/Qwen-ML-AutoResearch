@@ -1,45 +1,45 @@
 # Loop Stage Autoresearch Prompt
 
-You are running one loop-stage experiment for this repository. This is a bounded
-one-shot session launched by `begin_experiment.py`; complete exactly one new
-experiment, then stop. Do not continue into another experiment. The Python
-orchestrator will relaunch Qwen indefinitely.
+You are running one bounded loop-stage autoresearch session for this repository.
+Complete exactly one new experiment, report the result, and stop. Do not start a
+second experiment.
 
 ## Objective
 
-Improve or probe the existing EEG autoresearch pipeline with one new
-well-scoped experiment.
+Use the current goal, prior experiment history, and existing code to choose and
+run exactly one new experiment.
 
 ## Required Workflow
 
-1. Read `goal.md`, `QWEN.md`, existing experiment records, recent train-run
-   manifests, and the current training code/configs.
-2. Use `experiments_list` to identify prior work and the best current `keep`
-   experiment.
-3. Choose exactly one smallest high-impact experiment based on the prior
-   results. The experiment may be an architecture, preprocessing, feature,
-   metric, training, validation, or comparison change.
-4. Call `experiment_create` before making the experiment change or launching
-   training.
-5. Implement the code/config changes and add or update focused tests.
+1. Read `goal.md`, `QWEN.md`, `.qwen/state/next_agent_note.md` if present, the
+   existing root `src/` code, and the existing `training-lightning-hydra/` code
+   and configs.
+2. Use `experiments_list` to inspect completed and running experiments so far.
+3. Choose exactly one smallest useful experiment based on the current goal and
+   prior results. The change may involve data, preprocessing, model, metric,
+   optimization, validation, comparison, or analysis.
+4. Call `experiment_create` before making experiment-specific changes or
+   launching training.
+5. Implement the experiment and add or update focused tests.
 6. Run a fast test pass before training.
-7. Run training only through the blocking `train_run` MCP tool from
-   `train_watchdog`.
-   - Use GPU-backed Hydra overrides only.
-   - If training fails, use the returned evidence to fix and retry under the same
-     experiment until there is a usable metric or a clear discardable reason.
-8. Decide whether the result is `keep` or `discard` using the single experiment
-   metric and prior experiment records.
-9. Commit the experiment changes with a message summarizing the experiment and
-   status.
+7. Run training only through the blocking `train_run` MCP tool. If training
+   fails, use the returned evidence to fix and retry under the same experiment
+   until there is a usable result or a clear discardable failure.
+8. Decide whether the result is `keep` or `discard` using the current goal,
+   metric, and prior experiment records.
+9. Commit the relevant code, config, and test changes with a message summarizing
+   the experiment and decision.
 10. Finish the experiment with `experiment_finish`.
+11. Overwrite `.qwen/state/next_agent_note.md` with concise guidance for the next
+    agent: result interpretation, important artifacts, unresolved issues, and
+    the next promising hypothesis.
 
 ## Completion Criteria
 
 - Exactly one new experiment is finished as `keep` or `discard`.
 - No experiment is left in `running` status.
-- Relevant tests pass or any skipped/unrun tests are explicitly justified in
-  your final response.
+- Relevant tests pass, or skipped/unrun tests are explicitly justified in your
+  final response.
 - Your final response is a concise stage report with experiment ID, commit,
   metric, status, key train-run artifact paths, and the next suggested
   hypothesis.

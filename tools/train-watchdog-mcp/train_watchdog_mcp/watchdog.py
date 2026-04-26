@@ -129,12 +129,28 @@ def validate_single_running_experiment() -> dict[str, Any] | None:
     }
 
 
-def write_active_training_lock(run_id: str) -> None:
+def write_active_training_lock(
+    *,
+    run_id: str,
+    experiment: dict[str, Any],
+    overrides: list[str],
+    timeout_sec: int,
+    idle_timeout_sec: int,
+    monitor_interval_sec: int,
+    report_request: str,
+) -> None:
+    experiment_id = experiment.get("experiment_id")
     write_json(
         ACTIVE_TRAINING_LOCK,
         {
+            "experiment_id": experiment_id,
+            "idle_timeout_sec": idle_timeout_sec,
+            "monitor_interval_sec": monitor_interval_sec,
+            "overrides": overrides,
+            "report_request": report_request,
             "run_id": run_id,
             "started_at": now_iso(),
+            "timeout_sec": timeout_sec,
         },
     )
 
@@ -548,6 +564,7 @@ def train_run(
     validation_error = validate_single_running_experiment()
     if validation_error is not None:
         return validation_error
+    running_experiment = load_running_experiments()[0]
 
     run_id = make_run_id()
     run_dir = STATE_ROOT / run_id
@@ -566,7 +583,15 @@ def train_run(
     idle_timed_out = False
 
     try:
-        write_active_training_lock(run_id)
+        write_active_training_lock(
+            run_id=run_id,
+            experiment=running_experiment,
+            overrides=overrides,
+            timeout_sec=timeout_sec,
+            idle_timeout_sec=idle_timeout_sec,
+            monitor_interval_sec=monitor_interval_sec,
+            report_request=report_request,
+        )
         with watchdog_log.open("w", encoding="utf-8") as log_file:
             log_file.write(f"[watchdog] run_id={run_id}\n")
             log_file.write(f"[watchdog] started_at={started_at_iso}\n")

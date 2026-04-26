@@ -2,7 +2,7 @@
 name = "autoresearch"
 version = "0.1.0"
 description = "AutoResearch training pipeline"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     # --------- pytorch --------- #
     "torch>=2.0.0",
@@ -34,6 +34,8 @@ dev = [
 dev = [
     "lark",
     "pytest",
+    "result-logger-mcp",
+    "train-watchdog-mcp",
 ]
 
 [tool.setuptools]
@@ -56,7 +58,11 @@ markers = [
   "slow: slow tests",
 ]
 minversion = "6.0"
-testpaths = "training-lightning-hydra/tests/"
+testpaths = [
+  "training-lightning-hydra/tests/",
+  "tools/result-logger-mcp/tests/",
+  "tools/train-watchdog-mcp/tests/",
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -74,3 +80,5 @@ explicit = true
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu130" }]
 torchvision = [{ index = "pytorch-cu130" }]
+result-logger-mcp = { path = "tools/result-logger-mcp", editable = true }
+train-watchdog-mcp = { path = "tools/train-watchdog-mcp", editable = true }

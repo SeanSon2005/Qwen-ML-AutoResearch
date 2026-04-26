@@ -1,38 +1,17 @@
-from pathlib import Path
-
+import hydra
 import pytest
-import torch
-
-from src.data.example_datamodule import ExampleDataModule
 
 
-@pytest.mark.parametrize("batch_size", [32, 128])
-def test_example_datamodule(batch_size: int) -> None:
-    """Tests `ExampleDataModule` to verify that it can be downloaded correctly, that the necessary
-    attributes were created (e.g., the dataloader objects), and that dtypes and batch sizes
-    correctly match.
+def test_configured_datamodule_smoke(cfg_train) -> None:
+    """Smoke-test the real configured datamodule once the init stage creates it."""
+    if "data" not in cfg_train:
+        pytest.skip("default training config does not define a data target yet")
 
-    :param batch_size: Batch size of the data to be loaded by the dataloader.
-    """
-    data_dir = "data/"
+    datamodule = hydra.utils.instantiate(cfg_train.data)
 
-    dm = ExampleDataModule(data_dir=data_dir, batch_size=batch_size)
-    dm.prepare_data()
-
-    assert not dm.data_train and not dm.data_val and not dm.data_test
-    assert Path(data_dir, "MNIST").exists()
-    assert Path(data_dir, "MNIST", "raw").exists()
-
-    dm.setup()
-    assert dm.data_train and dm.data_val and dm.data_test
-    assert dm.train_dataloader() and dm.val_dataloader() and dm.test_dataloader()
-
-    num_datapoints = len(dm.data_train) + len(dm.data_val) + len(dm.data_test)
-    assert num_datapoints == 70_000
-
-    batch = next(iter(dm.train_dataloader()))
-    x, y = batch
-    assert len(x) == batch_size
-    assert len(y) == batch_size
-    assert x.dtype == torch.float32
-    assert y.dtype == torch.int64
+    assert datamodule is not None
+    assert hasattr(datamodule, "prepare_data")
+    assert hasattr(datamodule, "setup")
+    assert callable(datamodule.train_dataloader)
+    assert callable(datamodule.val_dataloader)
+    assert callable(datamodule.test_dataloader)

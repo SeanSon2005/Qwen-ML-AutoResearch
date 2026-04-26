@@ -5,18 +5,18 @@ Qwen can read and modify files across the repository as needed.
 
 ## Folders
 
-- `.qwen/`: Qwen runtime configuration, prompt files, and local state. Generated
-  state lives under `.qwen/state/`.
-- `.qwen/prompts/`: Stage prompts used by `begin_experiment.py` when launching
-  bounded Qwen sessions.
-- `data/`: Local datasets. The current research data is the BCI Competition IV
-  2a EEG `.mat` files.
+- `.qwen/`: Qwen runtime configuration, stage prompts, and local state.
+- `.qwen/prompts/`: Bounded stage prompts for the first experiment and later
+  single-experiment sessions.
+- `.qwen/state/`: Generated local state, including train-run state and the
+  next-agent handoff note.
+- `data/`: Local datasets for the current research problem.
 - `experiments/`: Experiment records created by the result logger. Each
   `EXP-*` directory stores the hypothesis, decision, metric, commit, and linked
   train-run summaries for one experiment.
 - `logs/`: Generated Hydra, training, and watchdog logs.
 - `src/`: Repo-level utilities that are not part of the Lightning training
-  package, such as analysis helpers or one-off automation.
+  package, such as analysis helpers, scripts, or automation.
 - `tools/result-logger-mcp/`: MCP server for sequential experiment bookkeeping,
   including `experiments_list`, `experiment_create`, and `experiment_finish`.
 - `tools/train-watchdog-mcp/`: MCP server for blocking Lightning-Hydra training
@@ -27,7 +27,8 @@ Qwen can read and modify files across the repository as needed.
   configs, data modules, datasets, model modules, metrics, and training tests
   here.
 - `training-lightning-hydra/configs/`: Hydra configs for training and
-  evaluation.
+  evaluation. Files ending in `.example` are templates; real defaults should be
+  goal-specific files such as `config.yaml`.
 - `training-lightning-hydra/src/data/`: Lightning data modules and dataset
   loading/preprocessing code.
 - `training-lightning-hydra/src/models/`: Lightning modules and neural-network
@@ -40,12 +41,5 @@ Qwen can read and modify files across the repository as needed.
 
 - `goal.md`: Research objective, dataset description, constraints, and metric
   guidance.
-- `.qwen/prompts/init.md`: Instructions for the first bounded Qwen session that
-  builds the initial EEG pipeline and baseline experiment.
-- `.qwen/prompts/loop.md`: Instructions for each later bounded Qwen session that
-  performs exactly one new experiment.
-- `begin_experiment.py`: Local Python orchestrator that repeatedly launches
-  stage-bounded Qwen CLI sessions. It is intentionally excluded from Qwen prompt
-  context by `.qwenignore`.
 - `pyproject.toml`: Root Python project metadata and dependencies.
 - `uv.lock`: Root dependency lockfile when present.

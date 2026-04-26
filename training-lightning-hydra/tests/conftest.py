@@ -17,6 +17,8 @@ from omegaconf import DictConfig, open_dict
 
 PROJECT_ROOT = rootutils.find_root(search_from=__file__, indicator=".project-root")
 os.environ["PROJECT_ROOT"] = str(PROJECT_ROOT)
+DEFAULT_CONFIG_NAME = "config.yaml"
+DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / DEFAULT_CONFIG_NAME
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -61,8 +63,13 @@ def cfg_train_global() -> DictConfig:
 
     :return: A DictConfig object containing a default Hydra configuration for training.
     """
+    if not DEFAULT_CONFIG_PATH.exists():
+        pytest.skip(
+            f"{DEFAULT_CONFIG_PATH.relative_to(PROJECT_ROOT)} has not been created by the init stage yet"
+        )
+
     with initialize(version_base="1.3", config_path="../configs"):
-        cfg = compose(config_name="example.yaml", return_hydra_config=True, overrides=[])
+        cfg = compose(config_name=DEFAULT_CONFIG_NAME, return_hydra_config=True, overrides=[])
 
         # set defaults for all tests
         with open_dict(cfg):
@@ -88,8 +95,13 @@ def cfg_eval_global() -> DictConfig:
 
     :return: A DictConfig containing a default Hydra configuration for evaluation.
     """
+    if not DEFAULT_CONFIG_PATH.exists():
+        pytest.skip(
+            f"{DEFAULT_CONFIG_PATH.relative_to(PROJECT_ROOT)} has not been created by the init stage yet"
+        )
+
     with initialize(version_base="1.3", config_path="../configs"):
-        cfg = compose(config_name="example.yaml", return_hydra_config=True, overrides=["ckpt_path=."])
+        cfg = compose(config_name=DEFAULT_CONFIG_NAME, return_hydra_config=True, overrides=["ckpt_path=."])
 
         # set defaults for all tests
         with open_dict(cfg):
