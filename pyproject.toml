@@ -20,6 +20,7 @@ dependencies = [
 
     # --------- others --------- #
     "rootutils",
+    "scipy>=1.10.0",
     "pre-commit",
     "rich",
 ]
@@ -60,8 +61,7 @@ markers = [
 minversion = "6.0"
 testpaths = [
   "training-lightning-hydra/tests/",
-  "tools/result-logger-mcp/tests/",
-  "tools/train-watchdog-mcp/tests/",
+  "pipeline/tests/",
 ]
 
 [tool.coverage.report]

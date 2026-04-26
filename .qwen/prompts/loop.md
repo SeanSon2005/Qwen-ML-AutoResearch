@@ -12,7 +12,7 @@ run exactly one new experiment.
 ## Required Workflow
 
 1. Read `goal.md`, `QWEN.md`, `.qwen/state/next_agent_note.md` if present, the
-   existing root `src/` code, and the existing `training-lightning-hydra/` code
+   existing root `pipeline/` code, and the existing `training-lightning-hydra/` code
    and configs.
 2. Use `experiments_list` to inspect completed and running experiments so far.
 3. Choose exactly one smallest useful experiment based on the current goal and

@@ -5,24 +5,12 @@ Qwen can read and modify files across the repository as needed.
 
 ## Folders
 
-- `.qwen/`: Qwen runtime configuration, stage prompts, and local state.
-- `.qwen/prompts/`: Bounded stage prompts for the first experiment and later
-  single-experiment sessions.
-- `.qwen/state/`: Generated local state, including train-run state and the
-  next-agent handoff note.
 - `data/`: Local datasets for the current research problem.
 - `experiments/`: Experiment records created by the result logger. Each
   `EXP-*` directory stores the hypothesis, decision, metric, commit, and linked
   train-run summaries for one experiment.
-- `logs/`: Generated Hydra, training, and watchdog logs.
-- `src/`: Repo-level utilities that are not part of the Lightning training
+- `pipeline/`: Repo-level utilities that are not part of the Lightning training
   package, such as analysis helpers, scripts, or automation.
-- `tools/result-logger-mcp/`: MCP server for sequential experiment bookkeeping,
-  including `experiments_list`, `experiment_create`, and `experiment_finish`.
-- `tools/train-watchdog-mcp/`: MCP server for blocking Lightning-Hydra training
-  runs through `train_run`, plus resource monitoring and train-run manifests.
-- `tools/paper-search-mcp-patched/`: Local patched MCP server for literature
-  search tools.
 - `training-lightning-hydra/`: Lightning-Hydra training harness. Put training
   configs, data modules, datasets, model modules, metrics, and training tests
   here.
